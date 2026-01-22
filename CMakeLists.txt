@@ -7,5 +7,5 @@ find_package(raylib REQUIRED)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_executable(ArtNeuralNetworkSim src/main.cpp)
+add_executable(ArtNeuralNetworkSim src/main.cpp src/networkdraw.cpp)
 target_link_libraries(ArtNeuralNetworkSim  PRIVATE raylib)
