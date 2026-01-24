@@ -1,4 +1,5 @@
-#include "../src/networkdraw.h"
+#include "draw.h"
+#include <raylib.h>
 
 NeuronTheme getLayerColors(Layer type) {
   switch (type) {
@@ -14,6 +15,12 @@ NeuronTheme getLayerColors(Layer type) {
   default:
     return {{BLACK}, {RAYWHITE}};
   }
+}
+
+void drawFPSInfo(int fontSize, Color color) {
+  DrawText(TextFormat("FPS: %i", GetFPS()), 10, 10, fontSize, color);
+  DrawText(TextFormat("Frame time: %02.02f ms", GetFrameTime()), 60, 10,
+           fontSize, color);
 }
 
 // Devuelve un par: Las posiciones y el radio ajustado
@@ -123,5 +130,42 @@ void drawNetworkConnections(const NetworkLayout &layout) {
         DrawLineEx(startPos, endPos, thickness, YELLOW);
       }
     }
+  }
+}
+
+DigitViewer::DigitViewer() { texture = {0}; }
+
+DigitViewer::~DigitViewer() {
+  if (texture.id != 0) {
+    UnloadTexture(texture);
+  }
+}
+
+void DigitViewer::setData(const std::vector<int> &dataSample) {
+  if (texture.id != 0)
+    UnloadTexture(texture);
+
+  std::vector<unsigned char> pixelData;
+  pixelData.reserve(64);
+
+  for (int val : dataSample) {
+    int scaledVal = static_cast<int>((val / 16.0f) * 255.0f);
+    pixelData.push_back(static_cast<unsigned char>(scaledVal));
+  }
+
+  Image sample = {.data = pixelData.data(),
+                  .width = 8,
+                  .height = 8,
+                  .mipmaps = 1,
+                  .format = PIXELFORMAT_UNCOMPRESSED_GRAYSCALE};
+
+  texture = LoadTextureFromImage(sample);
+
+  SetTextureFilter(texture, TEXTURE_FILTER_POINT);
+}
+
+void DigitViewer::draw(Vector2 position, float rotation, float scale) {
+  if (texture.id != 0) {
+    DrawTextureEx(texture, position, rotation, scale, WHITE);
   }
 }
