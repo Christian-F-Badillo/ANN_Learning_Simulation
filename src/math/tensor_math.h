@@ -7,6 +7,14 @@ template <typename T> class Tensor;
 
 template <typename T>
 std::ostream &operator<<(std::ostream &os, const Tensor<T> &tensor);
+template <typename T>
+Tensor<T> operator+(const Tensor<T> &left, const Tensor<T> &right);
+template <typename T>
+Tensor<T> operator-(const Tensor<T> &left, const Tensor<T> &right);
+template <typename T>
+Tensor<T> operator*(const T &scalar, const Tensor<T> &tensor);
+template <typename T>
+Tensor<T> operator*(const Tensor<T> &right, const T &scalar);
 
 template <typename T> class Tensor {
 
@@ -15,6 +23,10 @@ public:
   Tensor(const std::vector<std::vector<T>> &matrix,
          const std::vector<int> &shapeIn);
   friend std::ostream &operator<< <>(std::ostream &os, const Tensor<T> &tensor);
+  friend Tensor<T> operator+ <>(const Tensor<T> &left, const Tensor<T> &right);
+  friend Tensor<T> operator- <>(const Tensor<T> &left, const Tensor<T> &right);
+  friend Tensor<T> operator* <>(const T &scalar, const Tensor<T> &tensor);
+  friend Tensor<T> operator* <>(const Tensor<T> &right, const T &scalar);
 
 private:
   std::vector<T> data;

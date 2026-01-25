@@ -1,7 +1,5 @@
 #include "tensor_math.h"
 #include <cstddef>
-#include <cstdlib>
-#include <cxxabi.h>
 #include <iostream>
 #include <ostream>
 #include <stdexcept>
@@ -117,17 +115,90 @@ std::ostream &operator<<(std::ostream &os, const Tensor<T> &tensor) {
  *
  ****************************************************/
 
+template <typename T>
+Tensor<T> operator+(const Tensor<T> &left, const Tensor<T> &right) {
+  if (left.shape.size() != right.shape.size()) {
+    throw std::invalid_argument("Dimension mismatch");
+  } else if (left.shape != right.shape) {
+    throw std::invalid_argument("Dimension mismatch");
+  }
+
+  size_t size{left.size};
+  std::vector<T> sum(size);
+
+  const T *pLeft = left.data.data();
+  const T *pRight = right.data.data();
+  T *pSum = sum.data();
+
+#pragma omp simd
+  for (size_t i = 0; i < size; i++) {
+    pSum[i] = pLeft[i] + pRight[i];
+  }
+
+  return {sum, left.shape};
+}
+
+template <typename T>
+Tensor<T> operator-(const Tensor<T> &left, const Tensor<T> &right) {
+  if (left.shape.size() != right.shape.size()) {
+    throw std::invalid_argument("Dimension mismatch");
+  } else if (left.shape != right.shape) {
+    throw std::invalid_argument("Dimension mismatch");
+  }
+
+  size_t size{left.size};
+  std::vector<T> diff(size);
+
+  const T *pLeft = left.data.data();
+  const T *pRight = right.data.data();
+  T *pDiff = diff.data();
+
+#pragma omp simd
+  for (size_t i = 0; i < size; i++) {
+    pDiff[i] = pLeft[i] - pRight[i];
+  }
+
+  return {diff, left.shape};
+}
+
+template <typename T>
+Tensor<T> operator*(const T &scalar, const Tensor<T> &right) {
+
+  size_t size{right.size};
+  std::vector<T> output(size);
+
+  const T *pRight = right.data.data();
+  T *pOut = output.data();
+
+#pragma omp simd
+  for (size_t i = 0; i < size; i++) {
+    pOut[i] = scalar * pRight[i];
+  }
+
+  return {output, right.shape};
+}
+
+template <typename T>
+Tensor<T> operator*(const Tensor<T> &right, const T &scalar) {
+  return scalar * right;
+}
+
 /******************************************************
  *
- * Main
+ * Test
  *
  *****************************************************/
 
 int main() {
 
   Tensor<int> tensor({1, 2, 3, 4, 5, 6}, {3, 2});
+  Tensor<int> tensor2({1, 1, 1, 1, 1, 1}, {3, 2});
 
-  std::cout << tensor << '\n';
+  std::cout << "Tensor 1:\n" << tensor << '\n';
+  std::cout << "Tensor 2:\n" << tensor2 << '\n';
+  std::cout << "Sum:\n" << tensor + tensor2 << '\n';
+  std::cout << "Difference:\n" << tensor - tensor2 << '\n';
+  std::cout << "Scalar Product (tensor1 * 10):\n" << tensor * 10 << '\n';
 
   return 0;
 }
