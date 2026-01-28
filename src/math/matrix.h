@@ -84,7 +84,7 @@ template <typename T>
 size_t Matrix<T>::_getSize(const std::vector<int> &shapeIn) {
   size_t sizeInt{1};
   for (const auto &element : shapeIn) {
-    if (element <= 0)
+    if (element < 0)
       throw std::invalid_argument(
           "Matrix: shape dimensions cannot be negative.");
     sizeInt *= (size_t)element;
@@ -190,25 +190,36 @@ template <typename T> const T *Matrix<T>::data_ptr() const {
 
 template <typename T>
 Matrix<T> operator+(const Matrix<T> &left, const Matrix<T> &right) {
-  if (left.shape().size() != right.shape().size()) {
-    throw std::invalid_argument("Dimension mismatch");
-  } else if (left.shape() != right.shape()) {
-    throw std::invalid_argument("Dimension mismatch");
-  }
 
-  size_t size{left.size()};
-  std::vector<T> sum(size);
+  if (left.shape() == right.shape()) { // Shall do Matrix sum?
 
-  const T *pLeft = left.data().data();
-  const T *pRight = right.data().data();
-  T *pSum = sum.data();
+    size_t size{left.size()};
+    std::vector<T> sum(size);
+
+    const T *pLeft = left.data_ptr();
+    const T *pRight = right.data_ptr();
+    T *pSum = sum.data();
 
 #pragma omp simd
-  for (size_t i = 0; i < size; i++) {
-    pSum[i] = pLeft[i] + pRight[i];
+    for (size_t i = 0; i < size; i++) {
+      pSum[i] = pLeft[i] + pRight[i];
+    }
+
+    return {sum, left.shape()};
   }
 
-  return {sum, left.shape()};
+  // If not we shall do Broadcasting Sum
+  else if (right.shape()[0] == 1 && right.shape()[1] == left.shape()[1]) {
+
+    return left + right.data();
+  } else if (left.shape()[0] == 1 && left.shape()[1] == right.shape()[1]) {
+    return right + left.data();
+  }
+  // Else throw an error
+  else {
+    throw std::invalid_argument("Dimension mismatch: Shapes are incompatible "
+                                "for Element-wise or Broadcast sum.");
+  }
 }
 
 template <typename T>
