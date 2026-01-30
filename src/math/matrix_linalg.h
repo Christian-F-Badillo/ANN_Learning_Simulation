@@ -1,7 +1,13 @@
+#pragma once
 #include "matrix.h"
+#include <cassert>
 #include <cstddef>
 #include <stdexcept>
 #include <vector>
+
+namespace Math {
+
+namespace Linalg {
 
 template <typename T> Matrix<T> matmul(const Matrix<T> &a, const Matrix<T> &b) {
   if (a.shape().size() != 2 || b.shape().size() != 2) {
@@ -96,3 +102,53 @@ template <typename T> Matrix<T> zeros(std::vector<int> shape) {
 
   return {out, shape};
 }
+
+template <typename T> Matrix<T> sum(const Matrix<T> &matrix, size_t axis) {
+  if (axis >= 2) {
+    throw std::invalid_argument("LineAlg::Sum::Index out of bounds");
+  }
+
+  int nrows = matrix.shape()[0];
+  int ncols = matrix.shape()[1];
+
+  // Out size
+  size_t resultSize = (axis == 0) ? ncols : nrows;
+
+  std::vector<T> result(resultSize, 0);
+
+  T *pResult = result.data();
+  const T *pMatrix = matrix.data_ptr();
+
+  // --- CASO AXIS 0: Sum on Rows
+  if (axis == 0) {
+#pragma omp parallel for
+    for (int j = 0; j < ncols; j++) {
+      T acc = 0;
+      for (int i = 0; i < nrows; i++) {
+        acc += pMatrix[i * ncols + j];
+      }
+      pResult[j] = acc;
+    }
+  }
+
+  // --- CASO AXIS 1: Sum on Columns
+  else {
+#pragma omp parallel for
+    for (int i = 0; i < nrows; i++) {
+      T acc = 0;
+      int baseIdx = i * ncols;
+      for (int j = 0; j < ncols; j++) {
+        acc += pMatrix[baseIdx + j];
+      }
+      pResult[i] = acc;
+    }
+  }
+
+  // Shape Out
+  std::vector<int> shapeResult =
+      (axis == 0) ? std::vector<int>{1, ncols} : std::vector<int>{nrows, 1};
+
+  return {result, shapeResult};
+}
+} // namespace Linalg
+} // namespace Math

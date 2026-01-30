@@ -2,25 +2,57 @@
 #include <cstddef>
 #include <iostream>
 #include <stdexcept>
-#include <typeindex>
 #include <vector>
+
+namespace Math {
 
 template <typename T> class Matrix;
 
+// friend operators-declarations
+
 template <typename T>
-std::ostream &operator<<(std::ostream &os, const Matrix<T> &tensor);
+std::ostream &operator<<(std::ostream &os, const Matrix<T> &matrix);
+
 template <typename T>
 Matrix<T> operator+(const Matrix<T> &left, const Matrix<T> &right);
+
 template <typename T>
 Matrix<T> operator+(const Matrix<T> &left, const std::vector<T> &vector);
+
 template <typename T>
 Matrix<T> operator+(const std::vector<T> &vector, const Matrix<T> &left);
+
+template <typename T>
+Matrix<T> operator+(const T &scalar, const Matrix<T> &matrix);
+
+template <typename T>
+Matrix<T> operator+(const Matrix<T> &matrix, const T &scalar);
+
 template <typename T>
 Matrix<T> operator-(const Matrix<T> &left, const Matrix<T> &right);
+
 template <typename T>
-Matrix<T> operator*(const T &scalar, const Matrix<T> &tensor);
+Matrix<T> operator-(const T &scalar, const Matrix<T> &matrix);
+
+template <typename T>
+Matrix<T> operator-(const Matrix<T> &matrix, const T &scalar);
+
+template <typename T>
+Matrix<T> operator*(const T &scalar, const Matrix<T> &matrix);
+
 template <typename T>
 Matrix<T> operator*(const Matrix<T> &right, const T &scalar);
+
+template <typename T>
+Matrix<T> operator*(const Matrix<T> &left, const Matrix<T> &right);
+
+template <typename T>
+Matrix<T> operator/(const T &scalar, const Matrix<T> &matrix);
+
+template <typename T>
+Matrix<T> operator/(const Matrix<T> &right, const T &scalar);
+
+// Class Matrix implementation
 
 template <typename T> class Matrix {
 
@@ -28,20 +60,27 @@ public:
   Matrix(std::vector<T> vectorIn, const std::vector<int> &shapeIn);
   Matrix(const std::vector<std::vector<T>> &matrix,
          const std::vector<int> &shapeIn);
-  friend std::ostream &operator<< <>(std::ostream &os, const Matrix<T> &tensor);
+  friend std::ostream &operator<< <>(std::ostream &os, const Matrix<T> &matrix);
   friend Matrix<T> operator+ <>(const Matrix<T> &left, const Matrix<T> &right);
   friend Matrix<T> operator+
       <>(const Matrix<T> &left, const std::vector<T> &bias);
   friend Matrix<T> operator+
       <>(const std::vector<T> &bias, const Matrix<T> &left);
+  friend Matrix<T> operator+(const T &scalar, const Matrix<T> &matrix);
+  friend Matrix<T> operator+(const Matrix<T> &matrix, const T &scalar);
   friend Matrix<T> operator- <>(const Matrix<T> &left, const Matrix<T> &right);
-  friend Matrix<T> operator* <>(const T &scalar, const Matrix<T> &tensor);
+  friend Matrix<T> operator-(const T &scalar, const Matrix<T> &matrix);
+  friend Matrix<T> operator-(const Matrix<T> &matrix, const T &scalar);
+  friend Matrix<T> operator* <>(const T &scalar, const Matrix<T> &matrix);
   friend Matrix<T> operator* <>(const Matrix<T> &right, const T &scalar);
+  friend Matrix<T> operator*(const Matrix<T> &left, const Matrix<T> &right);
 
   const size_t &size() const;
   const std::vector<int> &shape() const;
   const std::vector<T> &data() const;
   const T *data_ptr() const;
+  Matrix<T> &reshape(const std::vector<int> &new_shape);
+  Matrix<T> &view(std::vector<int> new_shape);
 
 private:
   std::vector<T> _data;
@@ -148,17 +187,17 @@ void Matrix<T>::print_recursive(std::ostream &os, size_t dim_index,
 }
 
 template <typename T>
-std::ostream &operator<<(std::ostream &os, const Matrix<T> &tensor) {
-  os << "Tensor(";
-  if (tensor.data().empty()) {
+std::ostream &operator<<(std::ostream &os, const Matrix<T> &matrix) {
+  os << "Matrix(";
+  if (matrix.data().empty()) {
     os << "[]";
   } else {
     size_t offset = 0;
-    tensor.print_recursive(os, 0, offset, 0);
+    matrix.print_recursive(os, 0, offset, 0);
   }
   os << ", shape=(";
-  for (size_t i = 0; i < tensor.shape().size(); ++i) {
-    os << tensor.shape()[i] << (i < tensor.shape().size() - 1 ? "," : "");
+  for (size_t i = 0; i < matrix.shape().size(); ++i) {
+    os << matrix.shape()[i] << (i < matrix.shape().size() - 1 ? "," : "");
   }
   os << "))";
 
@@ -257,6 +296,48 @@ Matrix<T> operator+(const std::vector<T> &bias, const Matrix<T> &left) {
 }
 
 template <typename T>
+Matrix<T> operator+(const Matrix<T> &matrix, const T &scalar) {
+
+  std::vector<T> output = matrix.data();
+  T *pOut = output.data();
+
+  size_t size = matrix.size();
+
+#pragma omp simd
+  for (size_t i = 0; i < size; i++) {
+    pOut[i] += scalar;
+  }
+
+  return {output, matrix.shape()};
+}
+
+template <typename T>
+Matrix<T> operator+(const T &scalar, const Matrix<T> &matrix) {
+  return matrix + scalar;
+}
+
+template <typename T>
+Matrix<T> operator-(const Matrix<T> &matrix, const T &scalar) {
+
+  std::vector<T> output = matrix.data();
+  T *pOut = output.data();
+
+  size_t size = matrix.size();
+
+#pragma omp simd
+  for (size_t i = 0; i < size; i++) {
+    pOut[i] -= scalar;
+  }
+
+  return {output, matrix.shape()};
+}
+
+template <typename T>
+Matrix<T> operator-(const T &scalar, const Matrix<T> &matrix) {
+  return matrix - scalar;
+}
+
+template <typename T>
 Matrix<T> operator-(const Matrix<T> &left, const Matrix<T> &right) {
   if (left.shape().size() != right.shape().size()) {
     throw std::invalid_argument("Dimension mismatch");
@@ -300,3 +381,123 @@ template <typename T>
 Matrix<T> operator*(const Matrix<T> &right, const T &scalar) {
   return scalar * right;
 }
+
+// Element-wise Matrix multiplication.
+template <typename T>
+Matrix<T> operator*(const Matrix<T> &left, const Matrix<T> &right) {
+
+  if (left.shape() != right.shape()) {
+    throw std::invalid_argument(
+        "Matrix::ElementWiseMult::Shapes must match exactly.");
+  }
+
+  std::vector<T> out(left.size());
+  T *pOut = out.data();
+  const T *pLeft = left.data_ptr();
+  const T *pRight = right.data_ptr();
+
+#pragma omp simd
+  for (size_t i = 0; i < left.size(); i++) {
+    pOut[i] = pLeft[i] * pRight[i];
+  }
+
+  return {out, left.shape()};
+}
+
+template <typename T>
+Matrix<T> operator/(const Matrix<T> &matrix, const T &scalar) {
+
+  if (scalar == (T)0) {
+    throw std::invalid_argument("Matrix::Zero division");
+  }
+
+  std::vector<T> output = matrix.data();
+  T *pOut = output.data();
+
+  size_t size = matrix.size();
+  T reciprocal = (T)1.0 / scalar;
+
+#pragma omp simd
+  for (size_t i = 0; i < size; i++) {
+    pOut[i] *= reciprocal;
+  }
+
+  return {output, matrix.shape()};
+}
+
+template <typename T>
+Matrix<T> operator/(const T &scalar, const Matrix<T> &matrix) {
+
+  std::vector<T> output = matrix.data();
+  T *pOut = output.data();
+
+  size_t size = matrix.size();
+
+  for (size_t i = 0; i < size; i++) {
+
+    if (pOut[i] == (T)0) {
+      throw std::invalid_argument("Matrix::Zero Division");
+    }
+
+    pOut[i] = scalar / pOut[i];
+  }
+
+  return {output, matrix.shape()};
+}
+
+/********************************************************************************
+ *
+ * LinAlg Methods
+ *
+ *********************************************************************************/
+
+template <typename T>
+Matrix<T> &Matrix<T>::reshape(const std::vector<int> &new_shape) {
+  // 1. Calcular tamaño de la nueva forma
+  size_t new_total_size = 1;
+  for (int dim : new_shape) {
+    if (dim < 0)
+      throw std::invalid_argument(
+          "Reshape: Dimensiones negativas no permitidas.");
+    new_total_size *= dim;
+  }
+
+  // 2. Validar que coincida con los datos actuales
+  if (new_total_size != this->_size) {
+    throw std::invalid_argument(
+        "Reshape: El número total de elementos no coincide.");
+  }
+
+  // 3. Modificar el estado interno (Coste O(1))
+  this->_shape = new_shape;
+
+  return *this;
+}
+
+template <typename T> Matrix<T> &Matrix<T>::view(std::vector<int> new_shape) {
+  int inferred_index = -1;
+  size_t known_size = 1;
+
+  for (size_t i = 0; i < new_shape.size(); ++i) {
+    if (new_shape[i] == -1) {
+      if (inferred_index != -1)
+        throw std::invalid_argument(
+            "Reshape: Solo una dimensión puede ser -1.");
+      inferred_index = i;
+    } else {
+      known_size *= new_shape[i];
+    }
+  }
+
+  // Si hubo un -1, calculamos cuánto debe valer
+  if (inferred_index != -1) {
+    if (this->_size % known_size != 0)
+      throw std::invalid_argument("Reshape: Dimensión inferida inválida.");
+    new_shape[inferred_index] = (int)(this->_size / known_size);
+  }
+
+  // Llamamos a la lógica base (que ahora modifica 'this')
+  return reshape(new_shape);
+}
+
+} // namespace Math
