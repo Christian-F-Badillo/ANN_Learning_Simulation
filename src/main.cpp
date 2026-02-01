@@ -1,6 +1,7 @@
 #include "gui/draw.h"
 #include "raylib.h"
 #include "utils/data_loader.h"
+#include <cstddef>
 #include <vector>
 
 // Macros
@@ -29,11 +30,11 @@ int main(int argc, char *argv[]) {
 
   Topology topology{64, 20, 9};
 
-  dataLoader::DataLoader data("../data/optdigits.tra");
+  Data::DataLoader data("../data/optdigits.tra");
   data.loadData();
 
-  int sampleId{100};
-  const std::vector<int> &feature = data.getFeatures()[sampleId];
+  size_t sampleId{100};
+  const std::vector<int> &feature = data.getFeatures().atRow(sampleId).data();
 
   DigitViewer viewer;
   viewer.setData(feature);

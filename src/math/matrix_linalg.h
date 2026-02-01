@@ -1,8 +1,8 @@
 #pragma once
 #include "matrix.h"
+#include "utils/asserts.h"
 #include <cassert>
 #include <cstddef>
-#include <stdexcept>
 #include <vector>
 
 namespace Math {
@@ -10,14 +10,14 @@ namespace Math {
 namespace Linalg {
 
 template <typename T> Matrix<T> matmul(const Matrix<T> &a, const Matrix<T> &b) {
-  if (a.shape().size() != 2 || b.shape().size() != 2) {
-    throw std::invalid_argument("Matmul: Only support Matrix n x m");
-  }
+  assert_eq(a.shape().size(), (size_t)2,
+            "Matrix::Linalg::Matmul::ValueError::Only support Matrix n x m");
+  assert_eq(b.shape().size(), (size_t)2,
+            "Matrix::Linalg::Matmul::ValueError::Only support Matrix n x m");
 
-  if (a.shape()[1] != b.shape()[0]) {
-    throw std::invalid_argument(
-        "Matmul: Dimesion mistmatch (cols A != rows B)");
-  }
+  assert_eq(a.shape()[1], b.shape()[0],
+            "Matrix::Linalg::Matmul::ValueError::Dimesion mistmatch (cols A != "
+            "rows B)");
 
   int rowsA{a.shape()[0]};
   int colsA{a.shape()[1]};
@@ -77,9 +77,7 @@ template <typename T> Matrix<T> ones(std::vector<int> shape) {
 
   size_t sizeInt{1};
   for (const auto &element : shape) {
-    if (element <= 0)
-      throw std::invalid_argument(
-          "Matrix: shape dimensions cannot be negative.");
+    assert_lineq(element, (int)1, "Matrix::Const::Dimesions must be positive");
     sizeInt *= (size_t)element;
   }
 
@@ -92,9 +90,7 @@ template <typename T> Matrix<T> zeros(std::vector<int> shape) {
 
   size_t sizeInt{1};
   for (const auto &element : shape) {
-    if (element <= 0)
-      throw std::invalid_argument(
-          "Matrix: shape dimensions cannot be negative.");
+    assert_lineq(element, (int)1, "Matrix::Const::Dimesions must be positive");
     sizeInt *= (size_t)element;
   }
 
@@ -104,9 +100,8 @@ template <typename T> Matrix<T> zeros(std::vector<int> shape) {
 }
 
 template <typename T> Matrix<T> sum(const Matrix<T> &matrix, size_t axis) {
-  if (axis >= 2) {
-    throw std::invalid_argument("LineAlg::Sum::Index out of bounds");
-  }
+  assert_gineq(axis, (size_t)1,
+               "Matrix::LineAlg::Sum::ValueError:::Index out of bounds");
 
   int nrows = matrix.shape()[0];
   int ncols = matrix.shape()[1];

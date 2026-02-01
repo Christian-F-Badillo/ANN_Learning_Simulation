@@ -1,23 +1,24 @@
 #include "matrix.h"
 #include <cmath>
+#include <vector>
 
 namespace Math {
 namespace Func {
 
 // Apply a function to a Matrix Element-Wise
 template <typename T, typename F> Matrix<T> apply(const Matrix<T> &m, F func) {
-  Matrix<T> result(m.shape());
+  size_t size = m.size();
+  std::vector<T> result(size);
 
   const T *pIn = m.data_ptr();
-  T *pOut = result.data_ptr();
-  size_t size = m.size();
+  T *pOut = result.data();
 
 #pragma omp parallel for
   for (size_t i = 0; i < size; i++) {
     pOut[i] = func(pIn[i]);
   }
 
-  return result;
+  return {result, m.shape()};
 }
 
 // Exp

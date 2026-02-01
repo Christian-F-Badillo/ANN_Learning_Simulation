@@ -43,3 +43,6 @@ target_link_libraries(test_ops PRIVATE SimCore)
 # Test Matrix Ops
 add_executable(test_mat_ops tests/test_matmul.cpp)
 target_link_libraries(test_mat_ops PRIVATE SimCore)
+
+add_executable(test_dense_layer tests/test_dense_layer.cpp)
+target_link_libraries(test_dense_layer PRIVATE SimCore)

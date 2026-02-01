@@ -1,6 +1,7 @@
 #pragma once
-#include "../src/math/matrix.h"
-#include <cstddef>
+#include "../math/matrix.h"
+#include "../math/matrix_linalg.h"
+#include "../utils/asserts.h"
 #include <memory>
 #include <stdexcept>
 
@@ -57,18 +58,14 @@ Math::Matrix<T> Operation<T>::backward(const Math::Matrix<T> &output_grad) {
     throw std::runtime_error(
         "Operation::backward::Call backward before forward");
   }
-  if (this->output_->shape() != output_grad.shape()) {
-    throw std::invalid_argument(
-        "Operation::backward::Dimension mistmatch at backward");
-  }
+  Math::assert_shape(this->output_->shape(), output_grad.shape(),
+                     "Operation::backward");
 
   this->inputGrad_ =
       std::make_shared<Math::Matrix<T>>(this->_compute_input_grad(output_grad));
 
-  if (this->inputGrad_->shape() != this->input_->shape()) {
-    throw std::runtime_error(
-        "Operation::backward::Dimension mistmatch: input shape != grad shape");
-  }
+  Math::assert_shape(this->inputGrad_->shape(), this->input_->shape(),
+                     "Operation::backward");
 
   return {this->inputGrad_->data(), this->inputGrad_->shape()};
 }
@@ -86,6 +83,8 @@ public:
       : parameters(std::make_shared<Math::Matrix<T>>(param)){};
 
   Math::Matrix<T> backward(const Math::Matrix<T> &output_grad);
+  std::shared_ptr<Math::Matrix<T>> param() { return parameters; }
+  std::shared_ptr<Math::Matrix<T>> param_grad() { return parameters_grad_; }
 
 protected:
   std::shared_ptr<Math::Matrix<T>> parameters;
@@ -108,10 +107,8 @@ ParamOperation<T>::backward(const Math::Matrix<T> &output_grad) {
   this->parameters_grad_ = std::make_shared<Math::Matrix<T>>(
       this->_compute_parameters_grad(output_grad));
 
-  if (this->parameters_grad_->shape() != this->parameters->shape()) {
-    throw std::runtime_error(
-        "ParamOperation::backward::Params grad shape mismatch");
-  }
+  Math::assert_shape(this->parameters_grad_->shape(),
+                     this->parameters->shape());
 
   return Operation<T>::backward(output_grad);
 }
@@ -143,21 +140,23 @@ public:
 
 template <typename T> Math::Matrix<T> WeightMultiply<T>::_compute_output() {
 
-  return matmul(*this->input_, *this->parameters);
+  return Math::Linalg::matmul(*this->input_, *this->parameters);
 }
 
 template <typename T>
 Math::Matrix<T>
 WeightMultiply<T>::_compute_input_grad(const Math::Matrix<T> &output_grad) {
 
-  return matmul(output_grad, transpose(*this->parameters));
+  return Math::Linalg::matmul(output_grad,
+                              Math::Linalg::transpose(*this->parameters));
 }
 
 template <typename T>
 Math::Matrix<T> WeightMultiply<T>::_compute_parameters_grad(
     const Math::Matrix<T> &output_grad) {
 
-  return matmul(transpose(*this->input_), output_grad);
+  return Math::Linalg::matmul(Math::Linalg::transpose(*this->input_),
+                              output_grad);
 }
 
 /***************************************************************************
@@ -170,9 +169,7 @@ template <typename T> class AddBias : public ParamOperation<T> {
 
 public:
   AddBias(const Math::Matrix<T> &bias) : ParamOperation<T>(bias) {
-    if (bias.shape()[0] != (size_t)1) {
-      throw std::invalid_argument("AddBias::Bias nrows != 1");
-    }
+    Math::assert_eq(bias.shape()[0], (int)1, "AddBias::Constructor");
   };
 
   Math::Matrix<T> _compute_output(void) override;
@@ -204,7 +201,7 @@ template <typename T>
 Math::Matrix<T>
 AddBias<T>::_compute_parameters_grad(const Math::Matrix<T> &output_grad) {
 
-  return sum(output_grad, 0).reshape({1, output_grad.shape()[1]});
+  return Math::Linalg::sum(output_grad, 0).reshape({1, output_grad.shape()[1]});
 }
 
 } // namespace Ops

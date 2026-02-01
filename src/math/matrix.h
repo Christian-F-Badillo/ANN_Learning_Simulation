@@ -1,4 +1,5 @@
 #pragma once
+#include "../utils/asserts.h"
 #include <cstddef>
 #include <iostream>
 #include <stdexcept>
@@ -9,7 +10,6 @@ namespace Math {
 template <typename T> class Matrix;
 
 // friend operators-declarations
-
 template <typename T>
 std::ostream &operator<<(std::ostream &os, const Matrix<T> &matrix);
 
@@ -66,14 +66,14 @@ public:
       <>(const Matrix<T> &left, const std::vector<T> &bias);
   friend Matrix<T> operator+
       <>(const std::vector<T> &bias, const Matrix<T> &left);
-  friend Matrix<T> operator+(const T &scalar, const Matrix<T> &matrix);
-  friend Matrix<T> operator+(const Matrix<T> &matrix, const T &scalar);
+  friend Matrix<T> operator+ <>(const T &scalar, const Matrix<T> &matrix);
+  friend Matrix<T> operator+ <>(const Matrix<T> &matrix, const T &scalar);
   friend Matrix<T> operator- <>(const Matrix<T> &left, const Matrix<T> &right);
-  friend Matrix<T> operator-(const T &scalar, const Matrix<T> &matrix);
-  friend Matrix<T> operator-(const Matrix<T> &matrix, const T &scalar);
+  friend Matrix<T> operator- <>(const T &scalar, const Matrix<T> &matrix);
+  friend Matrix<T> operator- <>(const Matrix<T> &matrix, const T &scalar);
   friend Matrix<T> operator* <>(const T &scalar, const Matrix<T> &matrix);
   friend Matrix<T> operator* <>(const Matrix<T> &right, const T &scalar);
-  friend Matrix<T> operator*(const Matrix<T> &left, const Matrix<T> &right);
+  friend Matrix<T> operator* <>(const Matrix<T> &left, const Matrix<T> &right);
 
   const size_t &size() const;
   const std::vector<int> &shape() const;
@@ -81,6 +81,9 @@ public:
   const T *data_ptr() const;
   Matrix<T> &reshape(const std::vector<int> &new_shape);
   Matrix<T> &view(std::vector<int> new_shape);
+  T &at(size_t row, size_t col);
+  Matrix<T> atRow(size_t row) const;
+  Matrix<T> atCol(size_t col) const;
 
 private:
   std::vector<T> _data;
@@ -99,21 +102,15 @@ private:
 template <typename T>
 Matrix<T>::Matrix(std::vector<T> vectorIn, const std::vector<int> &shapeIn)
     : _data(std::move(vectorIn)), _shape(shapeIn), _size(_getSize(shapeIn)) {
-  if (_shape.size() != 2) {
-    throw std::invalid_argument("Matrix: dimension mismatch");
-  } else if (_size != _data.size())
-    throw std::invalid_argument(
-        "Matrix: number of elements differs from shape.");
+  assert_eq(_shape.size(), (size_t)2, "Matrix::Const::Dimension mismatch");
+  assert_eq(_size, _data.size(), "Matrix::Const::ValueError.");
 }
 template <typename T>
 Matrix<T>::Matrix(const std::vector<std::vector<T>> &matrix,
                   const std::vector<int> &shapeIn)
     : _data(_squeezeMatrix(matrix)), _shape(shapeIn), _size(_getSize(shapeIn)) {
-  if (_shape.size() != 2) {
-    throw std::invalid_argument("Matrix: dimension mismatch");
-  } else if (_size != _data.size())
-    throw std::invalid_argument(
-        "Matrix: number of elements differs from shape.");
+  assert_eq(_shape.size(), (size_t)2, "Matrix::Const::Dimension mismatch");
+  assert_eq(_size, _data.size(), "Matrix::Const::ValueError.");
 }
 
 // ***************************************************************
@@ -123,9 +120,7 @@ template <typename T>
 size_t Matrix<T>::_getSize(const std::vector<int> &shapeIn) {
   size_t sizeInt{1};
   for (const auto &element : shapeIn) {
-    if (element < 0)
-      throw std::invalid_argument(
-          "Matrix: shape dimensions cannot be negative.");
+    assert_lineq(element, 0, "Matrix: shape dimensions cannot be negative.");
     sizeInt *= (size_t)element;
   }
   return sizeInt;
@@ -264,10 +259,7 @@ Matrix<T> operator+(const Matrix<T> &left, const Matrix<T> &right) {
 template <typename T>
 Matrix<T> operator+(const Matrix<T> &matrix, const std::vector<T> &bias) {
 
-  if (bias.size() != (size_t)matrix.shape()[1]) {
-    throw std::invalid_argument("Broadcast Add: El tamaño del vector no "
-                                "coincide con las columnas (Bias mismatch).");
-  }
+  assert_eq(bias.size(), (size_t)matrix.shape()[1], "BroadcastAdd::ValueError");
 
   std::vector<T> output = matrix.data();
 
@@ -339,11 +331,10 @@ Matrix<T> operator-(const T &scalar, const Matrix<T> &matrix) {
 
 template <typename T>
 Matrix<T> operator-(const Matrix<T> &left, const Matrix<T> &right) {
-  if (left.shape().size() != right.shape().size()) {
-    throw std::invalid_argument("Dimension mismatch");
-  } else if (left.shape() != right.shape()) {
-    throw std::invalid_argument("Dimension mismatch");
-  }
+  assert_eq(left.shape().size(), right.shape().size(),
+            "Matrix::Operation::Dimension mismatch");
+  assert_shape(left.shape(), right.shape(),
+               "Matrix::Operation::Dimension mismatch");
 
   size_t size{left.size()};
   std::vector<T> diff(size);
@@ -386,10 +377,8 @@ Matrix<T> operator*(const Matrix<T> &right, const T &scalar) {
 template <typename T>
 Matrix<T> operator*(const Matrix<T> &left, const Matrix<T> &right) {
 
-  if (left.shape() != right.shape()) {
-    throw std::invalid_argument(
-        "Matrix::ElementWiseMult::Shapes must match exactly.");
-  }
+  assert_shape(left.shape(), right.shape(),
+               "Matrix::ElementWiseMult::Shapes must match exactly.");
 
   std::vector<T> out(left.size());
   T *pOut = out.data();
@@ -407,9 +396,7 @@ Matrix<T> operator*(const Matrix<T> &left, const Matrix<T> &right) {
 template <typename T>
 Matrix<T> operator/(const Matrix<T> &matrix, const T &scalar) {
 
-  if (scalar == (T)0) {
-    throw std::invalid_argument("Matrix::Zero division");
-  }
+  assert_eq(scalar, (T)0, "Matrix::Zero division");
 
   std::vector<T> output = matrix.data();
   T *pOut = output.data();
@@ -435,9 +422,7 @@ Matrix<T> operator/(const T &scalar, const Matrix<T> &matrix) {
 
   for (size_t i = 0; i < size; i++) {
 
-    if (pOut[i] == (T)0) {
-      throw std::invalid_argument("Matrix::Zero Division");
-    }
+    assert_eq(pOut[i], (T)0, "Matrix::Operation::ValueError::Zero Division");
 
     pOut[i] = scalar / pOut[i];
   }
@@ -453,22 +438,15 @@ Matrix<T> operator/(const T &scalar, const Matrix<T> &matrix) {
 
 template <typename T>
 Matrix<T> &Matrix<T>::reshape(const std::vector<int> &new_shape) {
-  // 1. Calcular tamaño de la nueva forma
   size_t new_total_size = 1;
   for (int dim : new_shape) {
-    if (dim < 0)
-      throw std::invalid_argument(
-          "Reshape: Dimensiones negativas no permitidas.");
+    assert_lineq(dim, 0, "Matrix::Reshape::Dimensions can't be negative.");
     new_total_size *= dim;
   }
 
-  // 2. Validar que coincida con los datos actuales
-  if (new_total_size != this->_size) {
-    throw std::invalid_argument(
-        "Reshape: El número total de elementos no coincide.");
-  }
+  assert_eq(new_total_size, this->_size,
+            "Matrix::Reshape::ValueError::Dimension mismatch");
 
-  // 3. Modificar el estado interno (Coste O(1))
   this->_shape = new_shape;
 
   return *this;
@@ -480,24 +458,72 @@ template <typename T> Matrix<T> &Matrix<T>::view(std::vector<int> new_shape) {
 
   for (size_t i = 0; i < new_shape.size(); ++i) {
     if (new_shape[i] == -1) {
-      if (inferred_index != -1)
-        throw std::invalid_argument(
-            "Reshape: Solo una dimensión puede ser -1.");
+      assert_eq(inferred_index, -1,
+                "Matrix::Reshape::ValueError::Only one dimension can be -1.");
       inferred_index = i;
     } else {
       known_size *= new_shape[i];
     }
   }
 
-  // Si hubo un -1, calculamos cuánto debe valer
   if (inferred_index != -1) {
-    if (this->_size % known_size != 0)
-      throw std::invalid_argument("Reshape: Dimensión inferida inválida.");
+    assert_eq(this->_size % (size_t)known_size, (size_t)0,
+              "Matrix::Reshape::ValueError::Can't infer dimension");
     new_shape[inferred_index] = (int)(this->_size / known_size);
   }
 
-  // Llamamos a la lógica base (que ahora modifica 'this')
   return reshape(new_shape);
+}
+
+/********************************************************************************
+ *
+ * Methods
+ *
+ *********************************************************************************/
+
+template <typename T> T &Math::Matrix<T>::at(size_t row, size_t col) {
+
+  size_t nrows = (size_t)shape()[0];
+  size_t ncols = (size_t)shape()[1];
+
+  Math::assert_lt(row, nrows, "Matrix::At");
+  Math::assert_lt(col, ncols, "Matrix::At");
+
+  size_t idx = row * ncols + col;
+
+  return this->data()[idx];
+}
+
+// Get a requested row
+template <typename T> Matrix<T> Matrix<T>::atRow(size_t row) const {
+  size_t nrows = (size_t)_shape[0];
+  size_t ncols = (size_t)_shape[1];
+
+  Math::assert_lt(row, nrows, "Matrix::atRow");
+
+  size_t start_idx = row * ncols;
+  size_t end_idx = start_idx + ncols;
+
+  std::vector<T> row_data(_data.begin() + start_idx, _data.begin() + end_idx);
+
+  return Matrix<T>(std::move(row_data), {1, (int)ncols});
+}
+
+// Get a requested col
+template <typename T> Matrix<T> Matrix<T>::atCol(size_t col) const {
+  size_t nrows = (size_t)_shape[0];
+  size_t ncols = (size_t)_shape[1];
+
+  Math::assert_lt(col, ncols, "Matrix::atCol");
+
+  std::vector<T> col_data;
+  col_data.reserve(nrows);
+
+  for (size_t i = 0; i < nrows; ++i) {
+    col_data.push_back(_data[i * ncols + col]);
+  }
+
+  return Matrix<T>(std::move(col_data), {(int)nrows, 1});
 }
 
 } // namespace Math
