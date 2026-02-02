@@ -19,8 +19,8 @@ template <typename T> class Operation {
 public:
   virtual ~Operation<T>() = default;
 
-  Math::Matrix<T> forward(const Math::Matrix<T> &input);
-  Math::Matrix<T> backward(const Math::Matrix<T> &output_grad);
+  virtual Math::Matrix<T> forward(const Math::Matrix<T> &input);
+  virtual Math::Matrix<T> backward(const Math::Matrix<T> &output_grad);
 
 protected:
   Operation<T>() = default;
@@ -79,10 +79,10 @@ Math::Matrix<T> Operation<T>::backward(const Math::Matrix<T> &output_grad) {
 template <typename T> class ParamOperation : public Operation<T> {
 
 public:
-  ParamOperation<T>(const Math::Matrix<T> &param)
-      : parameters(std::make_shared<Math::Matrix<T>>(param)){};
+  ParamOperation<T>(std::shared_ptr<Math::Matrix<T>> param)
+      : parameters(param){};
 
-  Math::Matrix<T> backward(const Math::Matrix<T> &output_grad);
+  Math::Matrix<T> backward(const Math::Matrix<T> &output_grad) override;
   std::shared_ptr<Math::Matrix<T>> param() { return parameters; }
   std::shared_ptr<Math::Matrix<T>> param_grad() { return parameters_grad_; }
 
@@ -122,7 +122,7 @@ ParamOperation<T>::backward(const Math::Matrix<T> &output_grad) {
 template <typename T> class WeightMultiply : public ParamOperation<T> {
 
 public:
-  WeightMultiply(const Math::Matrix<T> &weights)
+  WeightMultiply(std::shared_ptr<Math::Matrix<T>> weights)
       : ParamOperation<T>(weights) {};
 
   Math::Matrix<T> _compute_output(void) override;
@@ -168,8 +168,8 @@ Math::Matrix<T> WeightMultiply<T>::_compute_parameters_grad(
 template <typename T> class AddBias : public ParamOperation<T> {
 
 public:
-  AddBias(const Math::Matrix<T> &bias) : ParamOperation<T>(bias) {
-    Math::assert_eq(bias.shape()[0], (int)1, "AddBias::Constructor");
+  AddBias(std::shared_ptr<Math::Matrix<T>> bias) : ParamOperation<T>(bias) {
+    Math::assert_eq(bias->shape()[0], (int)1, "AddBias::Constructor");
   };
 
   Math::Matrix<T> _compute_output(void) override;

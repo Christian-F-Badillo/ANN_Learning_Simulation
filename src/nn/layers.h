@@ -1,7 +1,6 @@
 #include "../math/matrix.h"
 #include "../utils/asserts.h"
 #include "ops.h"
-#include <cstddef>
 #include <memory>
 #include <random>
 #include <utility>
@@ -19,10 +18,10 @@ namespace Layer {
 template <typename T> class Layer {
 public:
   virtual ~Layer() = default;
-  Math::Matrix<T> forward(const Math::Matrix<T> &input);
-  Math::Matrix<T> backward(const Math::Matrix<T> &output_grad);
-  void _compute_param_grad(void);
-  Math::Matrix<T> _get_params(void);
+  virtual Math::Matrix<T> forward(const Math::Matrix<T> &input);
+  virtual Math::Matrix<T> backward(const Math::Matrix<T> &output_grad);
+  virtual void _compute_param_grad(void);
+  virtual void _get_params(void);
   std::vector<std::shared_ptr<Math::Matrix<T>>> params() { return params_; }
   std::vector<std::shared_ptr<Math::Matrix<T>>> param_grads() {
     return params_grad_;
@@ -93,7 +92,7 @@ Math::Matrix<T> Layer<T>::backward(const Math::Matrix<T> &output_grad) {
 }
 
 // Backward on Parameters
-template <typename T> void Layer<T>::_compute_param_grad() {
+template <typename T> void Layer<T>::_compute_param_grad(void) {
 
   this->params_grad_.clear();
 
@@ -108,7 +107,7 @@ template <typename T> void Layer<T>::_compute_param_grad() {
 }
 
 // Get the params
-template <typename T> Math::Matrix<T> Layer<T>::_get_params(void) {
+template <typename T> void Layer<T>::_get_params(void) {
   this->params_.clear();
 
   for (const auto &op : this->operations_) {
@@ -116,7 +115,7 @@ template <typename T> Math::Matrix<T> Layer<T>::_get_params(void) {
     auto paramOpType = std::dynamic_pointer_cast<Ops::ParamOperation<T>>(op);
 
     if (paramOpType) {
-      this->params_grad_.push_back(paramOpType->param());
+      this->params_.push_back(paramOpType->param());
     }
   }
 }
@@ -170,11 +169,85 @@ void Dense<T>::_setup_layer(const Math::Matrix<T> &input) {
   this->params_.push_back(ptr_bias);
 
   this->operations_.push_back(
-      std::make_shared<NN::Ops::WeightMultiply<T>>(*ptr_weights));
+      std::make_shared<NN::Ops::WeightMultiply<T>>(ptr_weights));
 
-  this->operations_.push_back(std::make_shared<NN::Ops::AddBias<T>>(*ptr_bias));
+  this->operations_.push_back(std::make_shared<NN::Ops::AddBias<T>>(ptr_bias));
 
   this->operations_.push_back(this->act_func_);
+}
+
+/******************************************************************
+ *
+ * Implement a Sequential Class to generate a custom FeedForward Neural Network
+ *
+ *******************************************************************/
+
+template <typename T> class Sequential : public Layer<T> {
+public:
+  Sequential(std::vector<std::shared_ptr<Layer<T>>> layers = {})
+      : Layer<T>(0), layers_(layers) {}
+
+  void add(std::shared_ptr<Layer<T>> layer);
+  Math::Matrix<T> forward(const Math::Matrix<T> &input) override;
+  Math::Matrix<T> backward(const Math::Matrix<T> &output_grad) override;
+  void _compute_param_grad(void) override;
+  void _get_params() override;
+
+protected:
+  std::vector<std::shared_ptr<Layer<T>>> layers_;
+  void _setup_layer(const Math::Matrix<T> &input) override {}
+};
+
+template <typename T> void Sequential<T>::add(std::shared_ptr<Layer<T>> layer) {
+  layers_.push_back(layer);
+}
+
+template <typename T>
+Math::Matrix<T> Sequential<T>::forward(const Math::Matrix<T> &input) {
+  this->input_ = std::make_shared<Math::Matrix<T>>(input);
+
+  Math::Matrix<T> current = input;
+
+  for (auto &layer : layers_) {
+    current = layer->forward(current);
+  }
+
+  this->output_ = std::make_shared<Math::Matrix<T>>(current);
+  return current;
+}
+
+template <typename T>
+Math::Matrix<T> Sequential<T>::backward(const Math::Matrix<T> &output_grad) {
+  Math::assert_shape(this->output_->shape(), output_grad.shape(),
+                     "Sequential Output mismatch");
+
+  Math::Matrix<T> current_grad = output_grad;
+
+  for (auto it = layers_.rbegin(); it != layers_.rend(); ++it) {
+    current_grad = (*it)->backward(current_grad);
+  }
+
+  this->inputGrad_ = std::make_shared<Math::Matrix<T>>(current_grad);
+  return current_grad;
+}
+
+template <typename T> void Sequential<T>::_compute_param_grad(void) {
+  this->params_grad_.clear();
+  for (auto &layer : layers_) {
+    auto child_grads = layer->param_grads();
+    this->params_grad_.insert(this->params_grad_.end(), child_grads.begin(),
+                              child_grads.end());
+  }
+}
+
+template <typename T> void Sequential<T>::_get_params() {
+  this->params_.clear();
+  for (auto &layer : layers_) {
+    layer->_get_params();
+    auto child_params = layer->params();
+    this->params_.insert(this->params_.end(), child_params.begin(),
+                         child_params.end());
+  }
 }
 
 } // namespace Layer

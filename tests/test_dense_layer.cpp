@@ -1,102 +1,114 @@
 #include "../src/math/matrix.h"
-#include "../src/nn/activation_func.h"
 #include "../src/nn/layers.h"
+#include "../src/nn/ops.h" // Asegúrate que WeightMultiply y AddBias están aquí
 #include "test_utils.h"
+#include <iostream>
 #include <memory>
+
+// --- MOCK ACTIVATION ---
+// Una activación "dummy" que no hace nada (Identidad)
+// para probar la capa Dense sin ruido de otras fórmulas.
+namespace NN {
+namespace ActFunc {
+template <typename T> class LinearMock : public Ops::Operation<T> {
+public:
+  Math::Matrix<T> _compute_output() override {
+    // Simplemente devuelve la entrada tal cual (f(x) = x)
+    // Nota: Asegúrate de desreferenciar input_ correctamente
+    return *this->input_;
+  }
+  Math::Matrix<T>
+  _compute_input_grad(const Math::Matrix<T> &output_grad) override {
+    // La derivada de x es 1, así que devuelve el gradiente tal cual
+    return output_grad;
+  }
+};
+} // namespace ActFunc
+} // namespace NN
 
 using namespace NN;
 using namespace Math;
 
 int main() {
+  std::cout << "=== INICIANDO TEST DE DENSE LAYER ===" << std::endl;
 
-  // ======================================================================
-  // TEST 1: Inicialización y Shapes (Forward)
-  // Verificamos que la "Inicialización Perezosa" (Lazy Init) funcione
-  // y cree los pesos la primera vez que ve datos.
-  // ======================================================================
-  TEST_CASE("Dense: Initialization & Forward Shapes");
-  {
-    // Batch de 2 muestras, con 3 features cada una
-    Matrix<float> input({1.0, 2.0, 3.0, 4.0, 5.0, 6.0}, {2, 3});
+  // DATA SETUP
+  // Batch Size: 2, Features: 3
+  Matrix<float> input({1.0, 1.0, 1.0, 1.0, 1.0, 1.0}, {2, 3});
 
-    // Creamos la capa: 4 neuronas de salida, activación ReLU
-    auto relu = std::make_shared<NN::ActFunc::ReLU<float>>();
+  // Layer SETUP
+  int n_out = 2; // Out shape
+  auto activation = std::make_shared<ActFunc::LinearMock<float>>();
 
-    // Instanciamos Dense (Input size no se define aquí, se infiere del forward)
-    // Constructor: Dense(int neurons, shared_ptr<Operation> activation)
-    Layer::Dense<float> denseLayer(4, relu);
-
-    // --- FORWARD ---
-    Matrix<float> output = denseLayer.forward(input);
-
-    // Verificación de Shapes de Salida
-    // Esperado: (BatchSize, Neuronas) -> (2, 4)
-    ASSERT_EQ(output.shape()[0], 2);
-    ASSERT_EQ(output.shape()[1], 4);
-
-    // Verificación de Parámetros Internos (Pesos y Bias)
-    // Debemos llamar a _get_params() o acceder si son públicos para verificar
-    // Asumiendo que Layer tiene el método público params() que devuelve el
-    // vector
-    auto params = denseLayer.params();
-
-    // Debe haber 2 matrices de parámetros: [0]=Pesos, [1]=Bias
-    ASSERT_EQ(params.size(), (size_t)2);
-
-    // Chequeo de Pesos (W): (InputFeatures, Neurons) -> (3, 4)
-    ASSERT_EQ(params[0]->shape()[0], 3);
-    ASSERT_EQ(params[0]->shape()[1], 4);
-
-    // Chequeo de Bias (B): (1, Neurons) -> (1, 4)
-    ASSERT_EQ(params[1]->shape()[0], 1);
-    ASSERT_EQ(params[1]->shape()[1], 4);
+  // Assert not null pointer
+  if (!activation) {
+    std::cerr << "FATAL: Error al crear activación mock." << std::endl;
+    return -1;
   }
 
-  // ======================================================================
-  // TEST 2: Backward Pass y Gradientes
-  // Verificamos que las derivadas fluyan correctamente y generen
-  // gradientes para los pesos.
-  // ======================================================================
-  TEST_CASE("Dense: Backward Flow & Parameter Gradients");
-  {
-    // Configuración:
-    // Input: (2 samples, 5 features)
-    // Dense: 3 neuronas de salida
-    Matrix<double> input({1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, {2, 5});
+  TEST_CASE("Dense Layer Instantiation");
 
-    auto relu = std::make_shared<NN::ActFunc::ReLU<double>>();
-    Layer::Dense<double> denseLayer(3, relu);
+  // Dense(neuronas, activacion)
+  Layer::Dense<float> dense(n_out, activation);
+  std::cout << "   -> Capa instanciada correctamente." << std::endl;
 
-    // 1. Forward (Obligatorio antes de backward)
-    denseLayer.forward(input);
+  // FORWARD PASS
+  TEST_CASE("Dense Forward Pass (Lazy Init)");
+  Matrix<float> output = dense.forward(input);
 
-    // 2. Simular un Gradiente que viene de la siguiente capa
-    // Debe tener la misma forma que el output del forward: (Batch, Neuronas) ->
-    // (2, 3)
-    Matrix<double> output_grad({0.5, -0.5, 1.0, 0.0, 0.5, 0.5}, {2, 3});
+  // Assert output shape
+  // Input (2,3) * Weights (3,2) = Output (2,2)
+  ASSERT_EQ(output.shape()[0], 2);
+  ASSERT_EQ(output.shape()[1], n_out);
 
-    // 3. Backward
-    Matrix<double> input_grad = denseLayer.backward(output_grad);
+  // Assert correct pointer creation
+  auto params = dense.params();
+  ASSERT_EQ(params.size(), (size_t)2); // Weights & Bias
 
-    // --- Verificación del Gradiente de Entrada (dX) ---
-    // Debe tener la misma forma que el input original: (2, 5)
-    ASSERT_EQ(input_grad.shape()[0], 2);
-    ASSERT_EQ(input_grad.shape()[1], 5);
-
-    // --- Verificación de Gradientes de Parámetros (dW, dB) ---
-    // La capa debe haber calculado y guardado los gradientes internamente
-    auto param_grads = denseLayer.param_grads();
-
-    ASSERT_EQ(param_grads.size(), (size_t)2);
-
-    // Gradiente de Pesos (dL/dW): Debe coincidir con W -> (5, 3)
-    ASSERT_EQ(param_grads[0]->shape()[0], 5);
-    ASSERT_EQ(param_grads[0]->shape()[1], 3);
-
-    // Gradiente de Bias (dL/dB): Debe coincidir con B -> (1, 3)
-    ASSERT_EQ(param_grads[1]->shape()[0], 1);
-    ASSERT_EQ(param_grads[1]->shape()[1], 3);
+  if (params[0] == nullptr || params[1] == nullptr) {
+    std::cerr << "   [FAIL] Los parámetros se crearon como punteros nulos!"
+              << std::endl;
+    return 1;
   }
+  std::cout << "   -> Forward completado. Shapes correctos." << std::endl;
+
+  // BACKWARD PASS
+  TEST_CASE("Dense Backward Pass");
+
+  // Artificial Grad
+  Matrix<float> grad_output({0.5, 0.5, 0.5, 0.5}, {2, 2});
+
+  Matrix<float> grad_input = dense.backward(grad_output);
+
+  // Assert input grad shape
+  ASSERT_EQ(grad_input.shape()[0], 2);
+  ASSERT_EQ(grad_input.shape()[1], 3);
+  std::cout << "   -> Backward completado. Shapes correctos." << std::endl;
+
+  // Parameter Grads
+  TEST_CASE("Parameter Gradients Check");
+  auto grads = dense.param_grads();
+
+  ASSERT_EQ(grads.size(), (size_t)2);
+
+  // Assert pointer to grads exits
+  if (!grads[0]) {
+    std::cerr << "   [FAIL] El gradiente de los PESOS es null." << std::endl;
+    return 1;
+  }
+  if (!grads[1]) {
+    std::cerr << "   [FAIL] El gradiente del BIAS es null." << std::endl;
+    return 1;
+  }
+
+  // Assert dimensions
+  // Grad W should be (3, 2)
+  ASSERT_EQ(grads[0]->shape()[0], 3);
+  ASSERT_EQ(grads[0]->shape()[1], 2);
+
+  // Grad B should be (1, 2)
+  ASSERT_EQ(grads[1]->shape()[0], 1);
+  ASSERT_EQ(grads[1]->shape()[1], 2);
 
   return run_test_summary();
 }

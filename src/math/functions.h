@@ -26,6 +26,11 @@ template <typename T> Matrix<T> exp(const Matrix<T> &m) {
   return apply<T>(m, [](T x) { return std::exp(x); });
 }
 
+// log
+template <typename T> Matrix<T> log(const Matrix<T> &m) {
+  return apply<T>(m, [](T x) { return std::log(x); });
+}
+
 // Sigmoid
 template <typename T> Matrix<T> sigmoid(const Matrix<T> &m) {
   return (T)1.0 / ((T)1.0 + exp((T)-1.0 * m));

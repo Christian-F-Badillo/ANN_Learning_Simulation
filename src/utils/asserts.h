@@ -43,6 +43,18 @@ inline void assert_eq(const T &actual, const T &expected,
   }
 }
 
+// Assert than a value is distinct than other
+template <typename T>
+inline void assert_ineq(const T &actual, const T &expected,
+                        const std::string &context = "") {
+  if (actual == expected) {
+    std::stringstream ss;
+    ss << "ValueError " << context << ": Expected !=" << expected << " but got "
+       << actual;
+    throw std::invalid_argument(ss.str());
+  }
+}
+
 // Assert a value be less than a upper Bound
 template <typename T>
 inline void assert_lineq(const T &actual, const T &bound,

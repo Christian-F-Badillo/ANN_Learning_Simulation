@@ -46,3 +46,13 @@ target_link_libraries(test_mat_ops PRIVATE SimCore)
 
 add_executable(test_dense_layer tests/test_dense_layer.cpp)
 target_link_libraries(test_dense_layer PRIVATE SimCore)
+
+add_executable(test_dense_math tests/test_dense_math.cpp)
+target_link_libraries(test_dense_math PRIVATE SimCore)
+
+add_executable(test_sequential tests/test_sequential.cpp)
+target_link_libraries(test_sequential PRIVATE SimCore)
+
+add_executable(test_cost_func tests/test_cost_func.cpp)
+target_link_libraries(test_cost_func PRIVATE SimCore)
+

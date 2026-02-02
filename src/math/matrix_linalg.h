@@ -145,5 +145,16 @@ template <typename T> Matrix<T> sum(const Matrix<T> &matrix, size_t axis) {
 
   return {result, shapeResult};
 }
+
+// Sum all the elements from a Matrix m and return a Matrix 1x1 with the sum
+template <typename T> Matrix<T> sum(const Matrix<T> &m) {
+  T sum{(T)0};
+  for (const auto &element : m.data()) {
+    sum += element;
+  }
+
+  return Matrix<T>(std::vector<T>({sum}), std::vector<int>({1, 1}));
+}
+
 } // namespace Linalg
 } // namespace Math

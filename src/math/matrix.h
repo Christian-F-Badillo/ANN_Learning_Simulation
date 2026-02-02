@@ -52,6 +52,8 @@ Matrix<T> operator/(const T &scalar, const Matrix<T> &matrix);
 template <typename T>
 Matrix<T> operator/(const Matrix<T> &right, const T &scalar);
 
+template <typename T>
+Matrix<T> operator/(const Matrix<T> &left, const Matrix<T> &right);
 // Class Matrix implementation
 
 template <typename T> class Matrix {
@@ -74,6 +76,9 @@ public:
   friend Matrix<T> operator* <>(const T &scalar, const Matrix<T> &matrix);
   friend Matrix<T> operator* <>(const Matrix<T> &right, const T &scalar);
   friend Matrix<T> operator* <>(const Matrix<T> &left, const Matrix<T> &right);
+  friend Matrix<T> operator/ <>(const T &scalar, const Matrix<T> &matrix);
+  friend Matrix<T> operator/ <>(const Matrix<T> &right, const T &scalar);
+  friend Matrix<T> operator/ <>(const Matrix<T> &left, const Matrix<T> &right);
 
   const size_t &size() const;
   const std::vector<int> &shape() const;
@@ -396,7 +401,7 @@ Matrix<T> operator*(const Matrix<T> &left, const Matrix<T> &right) {
 template <typename T>
 Matrix<T> operator/(const Matrix<T> &matrix, const T &scalar) {
 
-  assert_eq(scalar, (T)0, "Matrix::Zero division");
+  assert_ineq(scalar, (T)0, "Matrix::Zero division");
 
   std::vector<T> output = matrix.data();
   T *pOut = output.data();
@@ -422,7 +427,7 @@ Matrix<T> operator/(const T &scalar, const Matrix<T> &matrix) {
 
   for (size_t i = 0; i < size; i++) {
 
-    assert_eq(pOut[i], (T)0, "Matrix::Operation::ValueError::Zero Division");
+    assert_ineq(pOut[i], (T)0, "Matrix::Operation::ValueError::Zero Division");
 
     pOut[i] = scalar / pOut[i];
   }
@@ -430,6 +435,29 @@ Matrix<T> operator/(const T &scalar, const Matrix<T> &matrix) {
   return {output, matrix.shape()};
 }
 
+// Element-wise division
+template <typename T>
+Matrix<T> operator/(const Matrix<T> &left, const Matrix<T> &right) {
+
+  assert_shape(left.shape(), right.shape(),
+               "Matrix::Division::ValueError::Dimensions mismatch");
+
+  std::vector<T> output = left.data();
+  T *pOut = output.data();
+  const T *pRight = right.data_ptr();
+
+  size_t size = left.size();
+
+  for (size_t i = 0; i < size; i++) {
+
+    assert_ineq(pRight[i], (T)0,
+                "Matrix::Operation::ValueError::Zero Division");
+
+    pOut[i] /= pRight[i];
+  }
+
+  return Matrix<T>(std::move(output), left.shape());
+}
 /********************************************************************************
  *
  * LinAlg Methods
