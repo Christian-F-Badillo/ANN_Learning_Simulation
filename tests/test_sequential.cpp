@@ -71,6 +71,11 @@ int main() {
   model->_get_params();
   auto all_params = model->params();
 
+  std::cout << "Model Params \n";
+  for (const auto param : all_params) {
+    std::cout << *param << "\n";
+  }
+  std::cout << '\n';
   // Análisis esperado:
   // Capa 1 (Dense): Tiene Pesos (W1) y Bias (B1) -> 2 tensores
   // Capa 2 (Dense): Tiene Pesos (W2) y Bias (B2) -> 2 tensores
@@ -116,6 +121,13 @@ int main() {
   Matrix<float> dx = simple_seq->backward(dy);
 
   ASSERT_ALMOST_EQ(dx.data_ptr()[0], 8.0f);
+
+  auto all_grads = simple_seq->param_grads();
+  std::cout << "Model Param Grads \n";
+  for (const auto param : all_grads) {
+    std::cout << *param << "\n";
+  }
+  std::cout << '\n';
 
   return run_test_summary();
 }

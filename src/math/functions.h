@@ -1,3 +1,4 @@
+#pragma once
 #include "matrix.h"
 #include <cmath>
 #include <vector>
@@ -19,6 +20,11 @@ template <typename T, typename F> Matrix<T> apply(const Matrix<T> &m, F func) {
   }
 
   return {result, m.shape()};
+}
+
+// Exp
+template <typename T> Matrix<T> sqrt(const Matrix<T> &m) {
+  return apply<T>(m, [](T x) { return std::sqrt(x); });
 }
 
 // Exp

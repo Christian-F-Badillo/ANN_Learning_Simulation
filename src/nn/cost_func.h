@@ -61,9 +61,9 @@ public:
 
 template <typename T> T MeanSquareError<T>::_compute_loss_value() {
 
-  Math::Matrix<T> squared_error = Math::Func::pow(*this->diff_, (T)2.0);
+  auto squared_error = Math::Func::pow(*this->diff_, (T)2.0);
 
-  Math::Matrix<T> sum_mat = Math::Linalg::sum(squared_error);
+  auto sum_mat = Math::Linalg::sum(squared_error);
 
   T sum_val = sum_mat.data()[0];
 
@@ -114,9 +114,9 @@ Math::Matrix<T> CategoricalCrossEntropy<T>::_compute_input_grad() {
   T N = (T)y_pred.shape()[0];
   T eps = 1e-9;
 
-  Math::Matrix<T> safe_pred = y_pred + eps;
+  auto safe_pred = y_pred + eps;
 
-  Math::Matrix<T> grad = (y_true / safe_pred) * (T)-1.0;
+  auto grad = (y_true / safe_pred) * (T)-1.0;
 
   return grad / N;
 }

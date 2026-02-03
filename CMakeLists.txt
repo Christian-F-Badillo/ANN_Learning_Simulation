@@ -56,3 +56,6 @@ target_link_libraries(test_sequential PRIVATE SimCore)
 add_executable(test_cost_func tests/test_cost_func.cpp)
 target_link_libraries(test_cost_func PRIVATE SimCore)
 
+add_executable(test_model_lregression tests/test_model_lregression.cpp)
+target_link_libraries(test_model_lregression PRIVATE SimCore)
+

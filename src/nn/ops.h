@@ -47,7 +47,7 @@ Math::Matrix<T> Operation<T>::forward(const Math::Matrix<T> &input) {
   this->input_ = std::make_shared<Math::Matrix<T>>(input);
   this->output_ = std::make_shared<Math::Matrix<T>>(this->_compute_output());
 
-  return {this->output_->data(), this->output_->shape()};
+  return *this->output_;
 }
 
 // BACKWARD
@@ -67,7 +67,7 @@ Math::Matrix<T> Operation<T>::backward(const Math::Matrix<T> &output_grad) {
   Math::assert_shape(this->inputGrad_->shape(), this->input_->shape(),
                      "Operation::backward");
 
-  return {this->inputGrad_->data(), this->inputGrad_->shape()};
+  return *this->inputGrad_;
 }
 
 /***************************************************************************
@@ -80,7 +80,10 @@ template <typename T> class ParamOperation : public Operation<T> {
 
 public:
   ParamOperation<T>(std::shared_ptr<Math::Matrix<T>> param)
-      : parameters(param){};
+      : parameters(param) {
+    this->parameters_grad_ = std::make_shared<Math::Matrix<T>>(
+        std::vector<T>(param->size(), (T)0.0), param->shape());
+  };
 
   Math::Matrix<T> backward(const Math::Matrix<T> &output_grad) override;
   std::shared_ptr<Math::Matrix<T>> param() { return parameters; }
@@ -104,8 +107,7 @@ template <typename T>
 Math::Matrix<T>
 ParamOperation<T>::backward(const Math::Matrix<T> &output_grad) {
 
-  this->parameters_grad_ = std::make_shared<Math::Matrix<T>>(
-      this->_compute_parameters_grad(output_grad));
+  *this->parameters_grad_ = this->_compute_parameters_grad(output_grad);
 
   Math::assert_shape(this->parameters_grad_->shape(),
                      this->parameters->shape());

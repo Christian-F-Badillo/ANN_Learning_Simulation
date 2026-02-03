@@ -54,6 +54,7 @@ Matrix<T> operator/(const Matrix<T> &right, const T &scalar);
 
 template <typename T>
 Matrix<T> operator/(const Matrix<T> &left, const Matrix<T> &right);
+
 // Class Matrix implementation
 
 template <typename T> class Matrix {
@@ -62,6 +63,8 @@ public:
   Matrix(std::vector<T> vectorIn, const std::vector<int> &shapeIn);
   Matrix(const std::vector<std::vector<T>> &matrix,
          const std::vector<int> &shapeIn);
+  Matrix(const Matrix<T> &other);
+  Matrix(Matrix<T> &&other) noexcept;
   friend std::ostream &operator<< <>(std::ostream &os, const Matrix<T> &matrix);
   friend Matrix<T> operator+ <>(const Matrix<T> &left, const Matrix<T> &right);
   friend Matrix<T> operator+
@@ -79,6 +82,8 @@ public:
   friend Matrix<T> operator/ <>(const T &scalar, const Matrix<T> &matrix);
   friend Matrix<T> operator/ <>(const Matrix<T> &right, const T &scalar);
   friend Matrix<T> operator/ <>(const Matrix<T> &left, const Matrix<T> &right);
+  Matrix<T> &operator=(Matrix<T> &&other) noexcept;
+  Matrix<T> &operator=(const Matrix<T> &other);
 
   const size_t &size() const;
   const std::vector<int> &shape() const;
@@ -86,7 +91,7 @@ public:
   const T *data_ptr() const;
   Matrix<T> &reshape(const std::vector<int> &new_shape);
   Matrix<T> &view(std::vector<int> new_shape);
-  T &at(size_t row, size_t col);
+  T at(size_t row, size_t col);
   Matrix<T> atRow(size_t row) const;
   Matrix<T> atCol(size_t col) const;
 
@@ -118,6 +123,16 @@ Matrix<T>::Matrix(const std::vector<std::vector<T>> &matrix,
   assert_eq(_size, _data.size(), "Matrix::Const::ValueError.");
 }
 
+template <typename T>
+Matrix<T>::Matrix(const Matrix<T> &other)
+    : _data(other._data), _shape(other._shape), _size(other._size) {}
+
+template <typename T>
+Matrix<T>::Matrix(Matrix<T> &&other) noexcept
+    : _data(std::move(other._data)), _shape(std::move(other._shape)),
+      _size(other._size) {
+  other._size = 0;
+}
 // ***************************************************************
 // Utils Methods
 // ***************************************************************
@@ -226,6 +241,29 @@ template <typename T> const T *Matrix<T>::data_ptr() const {
  * Math Methods
  *
  ****************************************************/
+
+template <typename T>
+Matrix<T> &Matrix<T>::operator=(Matrix<T> &&other) noexcept {
+  if (this != &other) {
+    _data = std::move(other._data);
+    _shape = std::move(other._shape);
+    _size = other._size;
+    other._size = 0;
+  }
+  return *this;
+}
+
+template <typename T> Matrix<T> &Matrix<T>::operator=(const Matrix<T> &other) {
+  if (this == &other) {
+    return *this;
+  }
+
+  this->_data = other._data;
+  this->_shape = other._shape;
+  this->_size = other._size;
+
+  return *this;
+}
 
 template <typename T>
 Matrix<T> operator+(const Matrix<T> &left, const Matrix<T> &right) {
@@ -456,7 +494,7 @@ Matrix<T> operator/(const Matrix<T> &left, const Matrix<T> &right) {
     pOut[i] /= pRight[i];
   }
 
-  return Matrix<T>(std::move(output), left.shape());
+  return {output, left.shape()};
 }
 /********************************************************************************
  *
@@ -509,17 +547,9 @@ template <typename T> Matrix<T> &Matrix<T>::view(std::vector<int> new_shape) {
  *
  *********************************************************************************/
 
-template <typename T> T &Math::Matrix<T>::at(size_t row, size_t col) {
-
-  size_t nrows = (size_t)shape()[0];
+template <typename T> T Math::Matrix<T>::at(size_t row, size_t col) {
   size_t ncols = (size_t)shape()[1];
-
-  Math::assert_lt(row, nrows, "Matrix::At");
-  Math::assert_lt(col, ncols, "Matrix::At");
-
-  size_t idx = row * ncols + col;
-
-  return this->data()[idx];
+  return _data[row * ncols + col];
 }
 
 // Get a requested row

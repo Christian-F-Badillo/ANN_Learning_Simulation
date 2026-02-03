@@ -79,24 +79,36 @@ inline void assert_gineq(const T &actual, const T &bound,
   }
 }
 
-// Assert than a value es less than a limit
+// Assert than a value es less than an upper open bound
 template <typename T>
-inline void assert_lt(T index, T limit, const std::string &context = "") {
-  if (index >= limit) {
+inline void assert_lt(T value, T upper, const std::string &context = "") {
+  if (value >= upper) {
     std::stringstream ss;
-    ss << "IndexError " << context << ": Index " << index
-       << " out of bounds (limit " << limit << ")";
+    ss << "ValueError " << context << ": Value " << value
+       << " is greater than the upper bound " << upper << ")";
     throw std::out_of_range(ss.str());
   }
 }
 
-// Assert than a Value is greater than a limit
+// Assert than a Value is greater than a lower open limit
 template <typename T>
-inline void assert_gt(T index, T limit, const std::string &context = "") {
-  if (index <= limit) {
+inline void assert_gt(T value, T lower, const std::string &context = "") {
+  if (value <= lower) {
     std::stringstream ss;
-    ss << "IndexError " << context << ": Index " << index
-       << " out of bounds (limit " << limit << ")";
+    ss << "ValueError" << context << ": Value " << value
+       << " is less than the lower bound" << lower << ")";
+    throw std::out_of_range(ss.str());
+  }
+}
+
+// Assert that a Value is between two open bouds
+template <typename T>
+inline void assert_between(T value, T lower, T upper,
+                           const std::string &context = "") {
+  if (value >= upper && value <= lower) {
+    std::stringstream ss;
+    ss << "ValueError" << context << ": Value " << value << " is not in ("
+       << lower << ", " << upper << ")";
     throw std::out_of_range(ss.str());
   }
 }
