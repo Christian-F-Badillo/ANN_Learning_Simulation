@@ -97,7 +97,7 @@ Dense_2                  (None, 10)               1280
 =================================================================
 Total params: 9472
 Trainable params: 9472
-``
+```
 
 ## 4. Requisitos Técnicos e Instalación
 
