@@ -89,6 +89,7 @@ model.fit(x_train, y_train, 50 /*epochs*/, 10 /*verbose*/);
 
 El método model.summary() genera un reporte detallado en consola:
 
+```bash
 Layer (type)             Output Shape             Param #        
 =================================================================
 Dense_1                  (None, 128)              8192           
@@ -96,7 +97,7 @@ Dense_2                  (None, 10)               1280
 =================================================================
 Total params: 9472
 Trainable params: 9472
-
+``
 
 ## 4. Requisitos Técnicos e Instalación
 
