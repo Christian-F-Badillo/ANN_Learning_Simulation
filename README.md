@@ -8,47 +8,47 @@ El framework se divide en dos grandes núcleos interdependientes:
 
 ### A. Core Matemático (Math)
 
-Ubicado en src/math/, gestiona la abstracción de tensores de rango 2 (Matrices).
+Ubicado en `src/math/`, gestiona la abstracción de tensores de rango 2 (Matrices).
 
-Gestión de Memoria: Implementa un esquema de almacenamiento contiguo para maximizar el cache locality.
+* **Gestión de Memoria:** Implementa un esquema de almacenamiento contiguo para maximizar el cache locality.
 
-Aceleración de Hardware: Utiliza directivas OpenMP (SIMD y Parallel For) para la vectorización de operaciones elementales y multiplicación de matrices.
+* **Aceleración de Hardware:** Utiliza directivas OpenMP (SIMD y Parallel For) para la vectorización de operaciones elementales y multiplicación de matrices.
 
-Broadcasting Engine: Capacidad nativa para operar matrices de distintas dimensiones compatibles (ej. suma de bias vectorizada sobre batches).
+* **Broadcasting Engine:** Capacidad nativa para operar matrices de distintas dimensiones compatibles (ej. suma de bias vectorizada sobre batches).
 
-Polimorfismo de Datos: Basado íntegramente en templates para soportar precisión simple (float), doble (double) o tipos personalizados.
+* **Polimorfismo de Datos:** Basado íntegramente en templates para soportar precisión simple (float), doble (double) o tipos personalizados.
 
 ### B. Motor de Redes Neuronales (NN)
 
-Ubicado en src/nn/, sigue un diseño orientado a objetos para el cálculo de gradientes.
+Ubicado en `src/nn/`, sigue un diseño orientado a objetos para el cálculo de gradientes.
 
-Abstracción de Operaciones: Cada capa se descompone en un grafo de Operations, facilitando la implementación de la retropropagación (Backpropagation) automática.
+* **Abstracción de Operaciones:** Cada capa se descompone en un grafo de Operations, facilitando la implementación de la retropropagación (Backpropagation) automática.
 
-Initialization Suite: Implementación de inicialización de pesos Xavier/Glorot Normal para prevenir el desvanecimiento del gradiente.
+* **Initialization Suite:** Implementación de inicialización de pesos Xavier/Glorot Normal para prevenir el desvanecimiento del gradiente.
 
-Optimización Avanzada: Soporte para descenso de gradiente estocástico (SGD) y el algoritmo Adam (Adaptive Moment Estimation) con corrección de sesgo.
+* **Optimización Avanzada:** Soporte para descenso de gradiente estocástico (SGD) y el algoritmo Adam (Adaptive Moment Estimation) con corrección de sesgo.
 
 ## 2. Componentes Principales
 
 ### Modelos y Capas
 
-NN::Model: Orquestador principal. Gestiona el ciclo de vida del entrenamiento, métricas y callbacks.
+* `NN::Model`: Orquestador principal. Gestiona el ciclo de vida del entrenamiento, métricas y callbacks.
 
-NN::Layer::Sequential: Contenedor de capas que automatiza el flujo de tensores (forward/backward).
+* `NN::Layer::Sequential`: Contenedor de capas que automatiza el flujo de tensores (forward/backward).
 
-NN::Layer::Dense: Capa totalmente conectada (Fully Connected) con soporte para activaciones integradas.
+* `NN::Layer::Dense`: Capa totalmente conectada (Fully Connected) con soporte para activaciones integradas.
 
 ### Funciones de Activación y Coste
 
-Activaciones: ReLU, Sigmoid y Tanh (optimizadas para gradientes locales).
+* **Activaciones**: ReLU, Sigmoid y Tanh (optimizadas para gradientes locales).
 
-Coste: MSE (Mean Squared Error) y Cross-Entropy (implícito/extensible).
+* **Coste**: MSE (Mean Squared Error) y Cross-Entropy (implícito/extensible).
 
 ### Optimización
 
-Adam Optimizer: Implementa momentos de primer y segundo orden para una convergencia acelerada.
+* **Adam Optimizer**: Implementa momentos de primer y segundo orden para una convergencia acelerada.
 
-Hyperparameter Control: Configuración fina de $\beta_1$, $\beta_2$ y $\epsilon$.
+* **Hyperparameter Control**: Configuración fina de $\beta_1$, $\beta_2$ y $\epsilon$.
 
 ## 3. Guía de Uso Rápido
 
@@ -56,7 +56,7 @@ Definición de un Perceptrón Multicapa (MLP)
 
 El API ha sido diseñado para ser intuitivo y similar a frameworks modernos como Keras o PyTorch.
 
-```{cpp}
+```cpp
 #include "nn/model.h"
 #include "nn/layers.h"
 #include "nn/activation_func.h"
@@ -102,15 +102,15 @@ Trainable params: 9472
 
 ### Prerrequisitos
 
-Compilador: GCC 7+ o Clang con soporte para C++17.
+* **Compilador**: GCC 7+ o Clang con soporte para C++17.
 
-Paralelismo: Soporte para libgomp (OpenMP).
+* **Paralelismo**: Soporte para libgomp (OpenMP).
 
-Sistema de Construcción: CMake 3.10+.
+* **Sistema de Construcción**: CMake 3.10+.
 
 ### Compilación
 
-```{bash}
+```bash
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
@@ -120,7 +120,6 @@ make -j$(nproc)
 
 Para obtener el máximo rendimiento de la librería de matrices, asegúrese de compilar con las banderas de optimización de arquitectura:
 
--O3: Optimización de nivel máximo.
--fopenmp: Habilita el paralelismo multinúcleo.
-
--march=native: Permite el uso de instrucciones vectoriales AVX/AVX2/AVX-512 según el procesador.
+* `-O3`: Optimización de nivel máximo.
+* `-fopenmp`: Habilita el paralelismo multinúcleo.
+* `-march=native`: Permite el uso de instrucciones vectoriales AVX/AVX2/AVX-512 según el procesador.
