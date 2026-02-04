@@ -52,6 +52,11 @@ template <typename T> Matrix<T> pow(const Matrix<T> &m, T power) {
   return apply<T>(m, [power](T x) { return std::pow(x, power); });
 }
 
+// Pow
+template <typename T> Matrix<T> abs(const Matrix<T> &m) {
+  return apply<T>(m, [](T x) { return std::abs(x); });
+}
+
 // ReLU
 template <typename T> Matrix<T> relu(const Matrix<T> &m) {
   return apply<T>(m, [](T x) { return x > (T)0 ? x : (T)0; });

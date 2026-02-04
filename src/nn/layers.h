@@ -233,7 +233,6 @@ void Dense<T>::_setup_layer(const Math::Matrix<T> &input) {
   bias_ref_ =
       std::make_shared<Math::Matrix<T>>(dataBias, std::vector<int>{1, n_out});
 
-  // Corregido: Crear punteros directos para evitar copias
   auto ptr_weights = std::make_shared<Math::Matrix<T>>(
       dataWeights, std::vector<int>{n_in, n_out});
   auto ptr_bias =
@@ -299,7 +298,6 @@ Math::Matrix<T> Sequential<T>::forward(const Math::Matrix<T> &input) {
     current = layer->forward(current);
   }
 
-  // IMPORTANTE: Recolección de parámetros perezosa
   if (this->isFirst_) {
     this->_get_params();
     this->isFirst_ = false;

@@ -1,7 +1,7 @@
 #pragma once
 #include "../math/functions.h"
 #include "../math/matrix.h"
-#include "utils/asserts.h"
+#include "../utils/asserts.h"
 #include <memory>
 #include <vector>
 

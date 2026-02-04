@@ -1,6 +1,6 @@
 #pragma once
+#include "../utils/asserts.h"
 #include "matrix.h"
-#include "utils/asserts.h"
 #include <cassert>
 #include <cstddef>
 #include <vector>

@@ -1,5 +1,5 @@
 #pragma once
-#include "callbacks.h" // Incluimos los callbacks
+#include "callbacks.h"
 #include "cost_func.h"
 #include "layers.h"
 #include "optimizer.h"

@@ -1,9 +1,10 @@
 #pragma once
-#include "../src/math/functions.h"
-#include "../src/math/matrix.h"
-#include "../src/math/matrix_linalg.h"
-#include "../src/utils/asserts.h"
+#include "../math/functions.h"
+#include "../math/matrix.h"
+#include "../math/matrix_linalg.h"
+#include "../utils/asserts.h"
 #include <memory>
+#include <vector>
 
 namespace NN {
 namespace CostFunc {
@@ -120,6 +121,38 @@ Math::Matrix<T> CategoricalCrossEntropy<T>::_compute_input_grad() {
 
   return grad / N;
 }
+
+// =========================================================================
+// MAE (Mean Absolute Error) - "Costo Lineal"
+// =========================================================================
+template <typename T> class MeanAbsoluteError : public Loss<T> {
+public:
+  T _compute_loss_value() override {
+    Math::Matrix<T> abs_diff = Math::Func::abs(*this->diff_);
+    Math::Matrix<T> sum_mat = Math::Linalg::sum(abs_diff);
+    return sum_mat.data()[0] / (T)this->prediction_->size();
+  }
+
+  Math::Matrix<T> _compute_input_grad() override {
+    T n = (T)this->prediction_->size();
+    T scale = (T)1.0 / n;
+
+    Math::Matrix<T> grad = *this->diff_;
+    const std::vector<T> &data = grad.data();
+    std::vector<T> result(data.size());
+    T *pResult = result.data();
+
+    for (size_t i = 0; i < data.size(); i++) {
+      if (data[i] > 0)
+        pResult[i] = scale;
+      else if (data[i] < 0)
+        pResult[i] = -scale;
+      else
+        pResult[i] = 0;
+    }
+    return {result, grad.shape()};
+  }
+};
 
 } // namespace CostFunc
 } // namespace NN

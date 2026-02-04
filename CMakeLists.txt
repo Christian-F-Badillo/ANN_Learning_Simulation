@@ -1,61 +1,82 @@
-cmake_minimum_required(VERSION 3.10)
-project(ArtNeuralNetworkSim)
+cmake_minimum_required(VERSION 3.14)
+
+project(BrainSim VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(raylib REQUIRED)
-find_package(OpenMP)
+# ------------------------------------------------------------------------------
+# 1. GESTIÓN DE DEPENDENCIAS (RAYLIB) - OPTIMIZADO
+# ------------------------------------------------------------------------------
+include(FetchContent)
 
-file(GLOB_RECURSE LIB_SOURCES "src/*.cpp")
+message(STATUS "Configurando Raylib (esto puede tardar un poco la primera vez)...")
 
-# Filter the main
-list(FILTER LIB_SOURCES EXCLUDE REGEX "src/main.cpp")
+FetchContent_Declare(
+    raylib
+    GIT_REPOSITORY https://github.com/raysan5/raylib.git
+    GIT_TAG        master
+    GIT_SHALLOW    TRUE   # <--- CLAVE: Descarga rápida (sin historial)
+    GIT_PROGRESS   TRUE   # <--- Muestra progreso en la consola
+)
+FetchContent_MakeAvailable(raylib)
 
-# CORE lib
-add_library(SimCore STATIC ${LIB_SOURCES})
+# ------------------------------------------------------------------------------
+# 2. DEFINICIÓN DEL EJECUTABLE PRINCIPAL
+# ------------------------------------------------------------------------------
+# Busca todos los .cpp en src/ y el main.cpp
+file(GLOB_RECURSE SOURCES "src/*.cpp" "main.cpp")
 
-target_include_directories(SimCore PUBLIC src)
+add_executable(${PROJECT_NAME} ${SOURCES})
 
-# Linker
-target_link_libraries(SimCore PUBLIC raylib)
-if(OpenMP_CXX_FOUND)
-  target_link_libraries(SimCore PUBLIC OpenMP::OpenMP_CXX)
+# ------------------------------------------------------------------------------
+# 3. INCLUDES Y LINKEO (PRINCIPAL)
+# ------------------------------------------------------------------------------
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+# Enlazar con Raylib
+target_link_libraries(${PROJECT_NAME} PRIVATE raylib)
+
+# ------------------------------------------------------------------------------
+# 4. CONFIGURACIÓN ESPECÍFICA POR SO
+# ------------------------------------------------------------------------------
+if (WIN32)
+  set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE ON)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX)
 endif()
 
-# Main App
-add_executable(ArtNeuralNetworkSim src/main.cpp)
-# Linker
-target_link_libraries(ArtNeuralNetworkSim PRIVATE SimCore)
+# ------------------------------------------------------------------------------
+# 5. ASSETS
+# ------------------------------------------------------------------------------
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
-
-# TESTS
+# ------------------------------------------------------------------------------
+# 6. TESTS UNITARIOS
+# ------------------------------------------------------------------------------
 enable_testing()
 
-# Tensor Test
-add_executable(test_tensor tests/test_tensor.cpp)
-target_link_libraries(test_tensor PRIVATE SimCore)
+function(add_brain_test test_name source_file)
+  add_executable(${test_name} ${source_file})
 
-# Test Math
-add_executable(test_ops tests/test_math_tensor.cpp)
-target_link_libraries(test_ops PRIVATE SimCore)
+  target_include_directories(${test_name} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
 
-# Test Matrix Ops
-add_executable(test_mat_ops tests/test_matmul.cpp)
-target_link_libraries(test_mat_ops PRIVATE SimCore)
+  # Enlazar tests con lo necesario (a veces necesitan raylib si usan Math de raylib)
+  target_link_libraries(${test_name} PRIVATE raylib)
 
-add_executable(test_dense_layer tests/test_dense_layer.cpp)
-target_link_libraries(test_dense_layer PRIVATE SimCore)
+  set_target_properties(${test_name} PROPERTIES CXX_STANDARD 20)
+  add_test(NAME ${test_name} COMMAND ${test_name})
+endfunction()
 
-add_executable(test_dense_math tests/test_dense_math.cpp)
-target_link_libraries(test_dense_math PRIVATE SimCore)
-
-add_executable(test_sequential tests/test_sequential.cpp)
-target_link_libraries(test_sequential PRIVATE SimCore)
-
-add_executable(test_cost_func tests/test_cost_func.cpp)
-target_link_libraries(test_cost_func PRIVATE SimCore)
-
-add_executable(test_model_lregression tests/test_model_lregression.cpp)
-target_link_libraries(test_model_lregression PRIVATE SimCore)
-
+# Tus tests
+add_brain_test(test_mat_ops           tests/test_matmul.cpp)
+add_brain_test(test_dense_layer       tests/test_dense_layer.cpp)
+add_brain_test(test_dense_math        tests/test_dense_math.cpp)
+add_brain_test(test_sequential        tests/test_sequential.cpp)
+add_brain_test(test_cost_func         tests/test_cost_func.cpp)
+add_brain_test(test_model_lregression tests/test_model_lregression.cpp)
