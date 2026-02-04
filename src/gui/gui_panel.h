@@ -157,22 +157,12 @@ public:
       optimizerEdit = false;
     }
 
-    // --- GRAPH & DATA ---
+    // --- GRAPH ---
     float graphY = buttonY + 45;
     Rectangle graphBounds = {25, graphY, 225, 90};
     DrawLossGraph(graphBounds);
 
-    float sampleY = graphY + 100;
-    if (GuiButton((Rectangle){25, sampleY + 5, 225, 30}, "Next Sample")) {
-      sampleId++;
-      if (sampleId >= totalSamples)
-        sampleId = 0;
-      sampleChanged = true;
-    }
-
     viewer.draw(dataPos, 0.0f, scale);
-    DrawText(TextFormat("Sample Id: %d", sampleId), (int)dataPos.x / 1.5f,
-             (int)dataPos.y + (int)(8 * scale) + 10, 20, RAYWHITE);
 
     // --- DIBUJO DE DROPDOWNS (Orden Inverso para Z-Index) ---
 

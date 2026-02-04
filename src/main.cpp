@@ -15,16 +15,13 @@
 // clang-format on
 
 // -----------------------------------------------------------------------------
-// My Modules
+// MÓDULOS DEL PROYECTO
 // -----------------------------------------------------------------------------
-// Matrix Support
 #include "math/matrix.h"
-// Data utils
 #include "utils/data_loader.h"
-// Encoding Labels
 #include "utils/encoding.h"
 
-// Neural Network
+// Red Neuronal
 #include "nn/model.h"
 #include "nn/layers.h"
 #include "nn/ops.h"
@@ -32,44 +29,61 @@
 #include "nn/optimizer.h"
 #include "nn/activation_func.h"
 
-// GUI
+// GUI y Visualización
 #include "gui/gui_panel.h"
 #include "gui/draw.h"
 
-// Macros
 #define FPS 60
 
+// --- CONSTANTES DE DISEÑO (Adapta el margen izquierdo según el SO) ---
+#ifdef __APPLE__
+    const float GUI_PANEL_WIDTH = 280.0f; // Un poco más ancho en Retina
+#else
+    const float GUI_PANEL_WIDTH = 260.0f;
+#endif
+
 // --- PROTOTIPOS ---
-void CheckWindowResize(NetworkLayout &layout, Vector2 &dataPos, Topology &topo,
-                       double radius);
+void CheckWindowResize(NetworkLayout &layout, Vector2 &dataPos, Topology &topo, double radius, double digitScale);
 void ToggleAppFullscreen();
 
 int main(int argc, char *argv[]) {
   // -------------------------------------------------------------------------
   // 1. INICIALIZACIÓN DE VENTANA Y ESTILO
   // -------------------------------------------------------------------------
-  SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT |
-                 FLAG_FULLSCREEN_MODE);
-  InitWindow(GetScreenWidth(), GetScreenHeight(), "Neural Network Laboratory");
-  SetTargetFPS(FPS);
+  
+  #ifdef __APPLE__
+    // macOS: Activar soporte HighDPI para pantallas Retina
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT | FLAG_WINDOW_HIGHDPI);
+    InitWindow(1280, 800, "BrainSim (macOS Retina)");
+  #else
+    // Linux/Windows: Configuración estándar
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
+    InitWindow(GetScreenWidth(), GetScreenHeight(), "BrainSim (Linux/Win)");
+  #endif
 
-  // Cargar estilo Dark
+  SetTargetFPS(FPS);
   GuiLoadStyleDark();
   GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, 0x838383FF);
 
-  // Constantes de Dibujo
-  double neuronRadius = 25.0f; // Radio base
-  double scale = 10.0f;        // Escala del visualizador de dígitos
+  // --- ESCALADO VISUAL DINÁMICO ---
+  #ifdef __APPLE__
+    float dpiScale = GetWindowScaleDPI().x;
+    // Si hay HighDPI, aumentamos el tamaño de los elementos
+    double neuronRadius = 24.0 * (dpiScale > 1.0f ? 1.1 : 1.0);
+    double digitScale = 9.0 * (dpiScale > 1.0f ? 1.1 : 1.0);
+  #else
+    double neuronRadius = 25.0;
+    double digitScale = 10.0;
+  #endif
 
-  // Posición dinámica del visualizador de datos
-  Vector2 dataSamplePos = {((float)GetScreenWidth()) * 0.045f,
-                           (float)GetScreenHeight() / 2.0f +
-                               ((float)GetScreenHeight() / 6.5f)};
+  // Posición inicial del visualizador: DENTRO del panel izquierdo (abajo)
+  // X = 50px (margen izquierdo), Y = Altura - 220px (espacio para controles arriba)
+  Vector2 dataSamplePos = { GUI_PANEL_WIDTH /2.0f - (4.0f*(float)digitScale), (float)GetScreenHeight()*0.8f };
 
   // -------------------------------------------------------------------------
-  // 2. CARGA DE DATOS (DATASET)
+  // 2. CARGA DE DATOS
   // -------------------------------------------------------------------------
-  std::cout << "[INFO] Loading Dataset..." << std::endl;
+  std::cout << "[INFO] Loading Optdigits Dataset..." << std::endl;
   Data::DataLoader data("../data/optdigits.tra");
   try {
     data.loadData();
@@ -78,52 +92,42 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  // Referencias a los datos crudos
-  const Math::Matrix<int> &rawFeatures = data.getFeatures();
-  const Math::Matrix<int> &rawLabels = data.getLabels();
+  const auto &rawFeatures = data.getFeatures();
+  const auto &rawLabels = data.getLabels();
   size_t totalSamples = rawFeatures.shape()[0];
   size_t inputSize = rawFeatures.shape()[1]; // 64
   size_t outputSize = 10;                    // 0-9
 
-  // --- PREPROCESAMIENTO DATOS COMPLETOS (ALL DATA) ---
-  std::vector<int> allRawData = rawFeatures.data();
-  std::vector<double> allFeaturesDouble(allRawData.begin(), allRawData.end());
-
-  // Matriz con todo el dataset convertido a double
-  Math::Matrix<double> X_train_all(std::move(allFeaturesDouble),
-                                   rawFeatures.shape());
-
-  // Matriz con todos los targets en One-Hot (double)
-  Math::Matrix<double> y_train_all =
-      Data::Encoder::toOneHot<double>(rawLabels, (int)outputSize);
+  // Pre- procesar datos a double para entrenamiento (evita conversiones en cada frame)
+  std::vector<double> allFeaturesDouble(rawFeatures.data().begin(), rawFeatures.data().end());
+  Math::Matrix<double> X_train_all(std::move(allFeaturesDouble), rawFeatures.shape());
+  Math::Matrix<double> y_train_all = Data::Encoder::toOneHot<double>(rawLabels, (int)outputSize);
 
   // -------------------------------------------------------------------------
   // 3. ESTADO DE LA SIMULACIÓN
   // -------------------------------------------------------------------------
   NetworkGui gui;
   size_t currentSampleId = 0;
-
-  // Visor de dígitos (Input Image)
+  
+  // Visor de imagen de entrada
   DigitViewer viewer;
   viewer.setData(rawFeatures.atRow(currentSampleId).data());
 
-  // Topología Inicial y Layout
-  Topology topology = {(int)inputSize, 20, 20, (int)outputSize}; // Default init
-  NetworkLayout layout = calculateNetworkLayout(
-      topology, GetScreenWidth(), GetScreenHeight(), neuronRadius);
+  // Configuración inicial de Topología
+  Topology topology = {(int)inputSize, 20, 20, (int)outputSize}; 
+  
+  // Calculamos layout inicial pasando el ancho del panel para el offset
+  NetworkLayout layout = calculateNetworkLayout(topology, GetScreenWidth(), GetScreenHeight(), (float)neuronRadius, GUI_PANEL_WIDTH);
 
   // -------------------------------------------------------------------------
   // 4. MODELO DE RED NEURONAL
   // -------------------------------------------------------------------------
   NN::Model<double> model;
-
-  // Optimizador por defecto
   std::shared_ptr<NN::Optimizer::Optimizer<double>> optimizer = nullptr;
 
-  // Forzamos una primera construcción del modelo
+  // Forzar construcción inicial
   gui.rebuildRequested = true;
-
-  // Variables para inferencia
+  
   int predictedLabel = -1;
   int targetLabel = -1;
 
@@ -132,204 +136,147 @@ int main(int argc, char *argv[]) {
   // -------------------------------------------------------------------------
   while (!WindowShouldClose()) {
 
-    // --- INPUT & WINDOW HANDLING ---
     ToggleAppFullscreen();
-    CheckWindowResize(layout, dataSamplePos, topology, neuronRadius);
+    CheckWindowResize(layout, dataSamplePos, topology, neuronRadius, digitScale);
 
-    // --- LÓGICA DE RECONSTRUCCIÓN ---
+    // --- RECONSTRUCCIÓN DEL MODELO (Si cambia la GUI) ---
     if (gui.rebuildRequested) {
-      std::cout << "[INFO] Rebuilding Model..." << std::endl;
-
       ModelConfig cfg = gui.GetConfig((int)inputSize, (int)outputSize);
-      topology = cfg.topology; // Actualizar topología visual
-
-      // Recalcular layout visual
-      layout = calculateNetworkLayout(topology, GetScreenWidth(),
-                                      GetScreenHeight(), neuronRadius);
-
-      // 1. Crear Estructura Secuencial
+      
+      // Actualizar visuales
+      topology = cfg.topology;
+      layout = calculateNetworkLayout(topology, GetScreenWidth(), GetScreenHeight(), (float)neuronRadius, GUI_PANEL_WIDTH);
+      
+      // Construir Red Secuencial
       auto sequential = std::make_shared<NN::Layer::Sequential<double>>();
-
-      // 2. Capas Ocultas
+      
+      // Capas Ocultas
       for (size_t i = 1; i < cfg.topology.size() - 1; ++i) {
-        std::shared_ptr<NN::Ops::Operation<double>> actFunc;
-
+        std::shared_ptr<NN::Ops::Operation<double>> act;
         switch (cfg.hiddenActivation) {
-        case ActivationType::ReLU:
-          actFunc = std::make_shared<NN::ActFunc::ReLU<double>>();
-          break;
-        case ActivationType::Tanh:
-          actFunc = std::make_shared<NN::ActFunc::Tanh<double>>();
-          break;
-        case ActivationType::Sigmoid:
-          actFunc = std::make_shared<NN::ActFunc::Sigmoid<double>>();
-          break;
-        default:
-          actFunc = std::make_shared<NN::ActFunc::ReLU<double>>();
-          break;
+            case ActivationType::ReLU:    act = std::make_shared<NN::ActFunc::ReLU<double>>(); break;
+            case ActivationType::Tanh:    act = std::make_shared<NN::ActFunc::Tanh<double>>(); break;
+            case ActivationType::Sigmoid: act = std::make_shared<NN::ActFunc::Sigmoid<double>>(); break;
+            default:                      act = std::make_shared<NN::ActFunc::ReLU<double>>(); break;
         }
-        sequential->add(std::make_shared<NN::Layer::Dense<double>>(
-            cfg.topology[i], actFunc));
+        sequential->add(std::make_shared<NN::Layer::Dense<double>>(cfg.topology[i], act));
       }
+      
+      // Capa de Salida
+      std::shared_ptr<NN::Ops::Operation<double>> outAct;
+      if (cfg.outputActivation == ActivationType::Softmax) 
+          outAct = std::make_shared<NN::ActFunc::Softmax<double>>();
+      else 
+          outAct = std::make_shared<NN::ActFunc::Linear<double>>();
+          
+      sequential->add(std::make_shared<NN::Layer::Dense<double>>((int)outputSize, outAct));
 
-      // 3. Capa de Salida
-      std::shared_ptr<NN::Ops::Operation<double>> outFunc;
-      switch (cfg.outputActivation) {
-      case ActivationType::Linear:
-        outFunc = std::make_shared<NN::ActFunc::Linear<double>>();
-        break;
-      case ActivationType::Softmax:
-        outFunc = std::make_shared<NN::ActFunc::Softmax<double>>();
-        break;
-      default:
-        outFunc = std::make_shared<NN::ActFunc::Softmax<double>>();
-        break;
-      }
-      sequential->add(
-          std::make_shared<NN::Layer::Dense<double>>((int)outputSize, outFunc));
-
-      // 4. Función de Costo
-      std::shared_ptr<NN::CostFunc::Loss<double>> lossFunc;
+      // Función de Costo
+      std::shared_ptr<NN::CostFunc::Loss<double>> loss;
       switch (cfg.costFunction) {
-      case CostType::MSE:
-        lossFunc = std::make_shared<NN::CostFunc::MeanSquareError<double>>();
-        break;
-      case CostType::CrossEntropy:
-        lossFunc =
-            std::make_shared<NN::CostFunc::CategoricalCrossEntropy<double>>();
-        break;
-      case CostType::MAE:
-        lossFunc = std::make_shared<NN::CostFunc::MeanAbsoluteError<double>>();
-        break;
+        case CostType::MSE:          loss = std::make_shared<NN::CostFunc::MeanSquareError<double>>(); break;
+        case CostType::MAE:          loss = std::make_shared<NN::CostFunc::MeanAbsoluteError<double>>(); break;
+        case CostType::CrossEntropy: loss = std::make_shared<NN::CostFunc::CategoricalCrossEntropy<double>>(); break;
       }
 
-      // 5. Compilar Modelo (CON EL OPTIMIZADOR SELECCIONADO)
-      switch (cfg.optimizer) {
-      case OptimizerType::Adam:
-        optimizer =
-            std::make_shared<NN::Optimizer::Adam<double>>(cfg.learningRate);
-        break;
-      case OptimizerType::SGD:
-        optimizer =
-            std::make_shared<NN::Optimizer::SGD<double>>(cfg.learningRate);
-        break;
-      }
+      // Optimizador
+      if (cfg.optimizer == OptimizerType::Adam) 
+          optimizer = std::make_shared<NN::Optimizer::Adam<double>>(cfg.learningRate);
+      else 
+          optimizer = std::make_shared<NN::Optimizer::SGD<double>>(cfg.learningRate);
 
       model.set_layers(sequential);
-      model.compile(lossFunc, optimizer);
-
-      // Limpiar historial de la gráfica
+      model.compile(loss, optimizer);
       gui.lossHistory.clear();
     }
 
-    // --- CONTROLES DE USUARIO ---
-
-    // 1. Navegación de Muestras (FLECHAS IZQ/DER)
-    if (IsKeyPressed(KEY_RIGHT)) {
-      currentSampleId++;
-      if (currentSampleId >= totalSamples)
-        currentSampleId = 0;
-      gui.sampleChanged = true;
-    } else if (IsKeyPressed(KEY_LEFT)) {
-      if (currentSampleId == 0)
-        currentSampleId = totalSamples - 1;
-      else
-        currentSampleId--;
-      gui.sampleChanged = true;
-    }
-
-    // 2. Entrenamiento (ESPACIO) - Full Batch
+    // --- INPUTS: ENTRENAMIENTO Y NAVEGACIÓN ---
+    
+    // 1. ESPACIO: Entrenar 1 Paso con TODO el dataset (Full Batch)
     if (IsKeyPressed(KEY_SPACE)) {
-      // Usamos X_train_all y y_train_all que contienen TODO el dataset
-      double loss = model.train_step(X_train_all, y_train_all);
-      gui.AddLoss(loss);
+        double lossVal = model.train_step(X_train_all, y_train_all);
+        gui.AddLoss((float)lossVal);
     }
 
-    // --- ACTUALIZACIÓN DE DATOS (Muestra Actual para Visualización) ---
-    // Si cambió el ID, actualizamos el viewer
-    if (gui.sampleChanged) {
-      viewer.setData(rawFeatures.atRow(currentSampleId).data());
-      gui.sampleChanged = false;
+    // 2. FLECHAS: Cambiar muestra visualizada (Inferencia)
+    if (IsKeyPressed(KEY_RIGHT)) { 
+        currentSampleId = (currentSampleId + 1) % totalSamples; 
+        gui.sampleChanged = true; 
+    }
+    if (IsKeyPressed(KEY_LEFT)) { 
+        currentSampleId = (currentSampleId == 0) ? totalSamples - 1 : currentSampleId - 1; 
+        gui.sampleChanged = true; 
     }
 
-    // --- PREPARACIÓN PARA INFERENCIA (Sample Actual) ---
-    // Aunque entrenemos con todos, queremos ver qué predice la red para el
-    // número en pantalla
+    // Actualizar textura si cambió la muestra
+    if (gui.sampleChanged) { 
+        viewer.setData(rawFeatures.atRow(currentSampleId).data()); 
+        gui.sampleChanged = false; 
+    }
 
-    // Extraemos la fila actual de la matriz gigante de doubles que ya creamos
-    std::vector<double> currentFeatureRow =
-        X_train_all.atRow(currentSampleId).data();
-    Math::Matrix<double> x_input_sample(currentFeatureRow,
-                                        std::vector<int>{1, (int)inputSize});
-
-    // Inferencia Continua
-    Math::Matrix<double> prediction = model.predict(x_input_sample);
-    predictedLabel = Data::Encoder::argMax(prediction.data());
-
-    // Etiqueta Real
+    // --- INFERENCIA CONTINUA (Sobre la muestra actual en pantalla) ---
+    std::vector<double> curRow = X_train_all.atRow(currentSampleId).data();
+    Math::Matrix<double> x_in(curRow, {1, (int)inputSize});
+    
+    // Predecir y obtener etiqueta
+    auto predictionMat = model.predict(x_in);
+    predictedLabel = Data::Encoder::argMax(predictionMat.data());
     targetLabel = rawLabels.atRow(currentSampleId).data()[0];
 
     // --- RENDERIZADO ---
     BeginDrawing();
     ClearBackground(BLACK);
 
-    // A. Información de Debug
     drawFPSInfo(10, GREEN);
 
-    // B. Red Neuronal (Fondo)
+    // 1. Dibujar Red Neuronal (Fondo)
     drawNetwork(layout);
     drawNetworkConnections(layout, model.get_parameters());
 
-    // C. Visualizador de Datos (Input)
-    viewer.draw(dataSamplePos, 0.0f, scale);
+    // 2. Dibujar Viewer (Imagen del dígito)
+    viewer.draw(dataSamplePos, 0.0f, (float)digitScale);
+    
+    // 3. Textos Informativos (Debajo del viewer)
+    int textY = (int)dataSamplePos.y + (8 * (int)digitScale) + 10;
+    
+    // Resultado Predicción
+    Color resultColor = (predictedLabel == targetLabel) ? GREEN : RED;
+    DrawText(TextFormat("Pred: %d (Real: %d)", predictedLabel, targetLabel), 
+             (int)dataSamplePos.x/2.0f, textY + 10, 20, resultColor); // Bajamos un poco para no tapar "Target" de GUI
 
-    // D. Información de Texto (Predicción vs Real)
-    double textX = dataSamplePos.x / 1.5f;
-    double textY = dataSamplePos.y + (8 * scale) + 40;
+    // Instrucciones (Alineadas dentro del panel)
+    #ifdef __APPLE__
+        DrawText("ESPACIO: Entrenar", (int)200, 10, 10, GRAY);
+        DrawText("FLECHAS: Navegar", (int)325, 10, 10, GRAY);
+    #else
+        DrawText("SPACE: Train Batch", (int)dataSamplePos.x, textY + 45, 10, GRAY);
+        DrawText("ARROWS: Navigate", (int)dataSamplePos.x, textY + 60, 10, GRAY);
+    #endif
 
-    Color predColor = (predictedLabel == targetLabel) ? GREEN : RED;
-    DrawText(TextFormat("Prediction: %d", predictedLabel), textX, textY + 10,
-             20, predColor);
-
-    // Instrucciones Actualizadas
-    DrawText("ESPACIO: Entrenar (Dataset Completo)", textX, textY + 60, 10,
-             GRAY);
-    DrawText("FLECHAS: Navegar Muestras", textX, textY + 75, 10, GRAY);
-
-    // E. GUI Panel (Siempre al final para Z-Index superior)
-    gui.Draw(GetScreenWidth(), GetScreenHeight(), currentSampleId, totalSamples,
-             viewer, dataSamplePos, scale);
+    // 4. GUI Panel (Siempre encima)
+    gui.Draw(GetScreenWidth(), GetScreenHeight(), currentSampleId, totalSamples, viewer, dataSamplePos, (float)digitScale);
 
     EndDrawing();
   }
 
-  // Limpieza
   CloseWindow();
   return 0;
 }
 
 // -----------------------------------------------------------------------------
-// IMPLEMENTACIÓN DE FUNCIONES AUXILIARES
+// IMPLEMENTACIÓN HELPERS
 // -----------------------------------------------------------------------------
 
-void ToggleAppFullscreen() {
-  if (IsKeyPressed(KEY_F11)) {
-    ToggleFullscreen();
-  }
+void ToggleAppFullscreen() { 
+    if (IsKeyPressed(KEY_T)) ToggleFullscreen(); 
 }
 
-void CheckWindowResize(NetworkLayout &layout, Vector2 &dataPos, Topology &topo,
-                       double radius) {
+void CheckWindowResize(NetworkLayout &layout, Vector2 &dataPos, Topology &topo, double radius, double digitScale) {
   if (IsWindowResized()) {
-    // Recalcular layout de la red
-    layout = calculateNetworkLayout(topo, GetScreenWidth(), GetScreenHeight(),
-                                    radius);
-
-    // Recalcular posición del viewer
-    dataPos = {
-        ((float)GetScreenWidth()) * 0.045f,
-        (float)GetScreenHeight() / 2.0f +
-            ((float)GetScreenHeight() / 6.5f) // Centrado vertical aprox
-    };
+    // Recalcular layout pasando el ancho del panel para evitar solapamiento
+    layout = calculateNetworkLayout(topo, GetScreenWidth(), GetScreenHeight(), (float)radius, GUI_PANEL_WIDTH);
+    
+    // Reposicionar el visor de datos DENTRO del panel
+    dataPos = { GUI_PANEL_WIDTH/2.0f - (4.0f*(float) digitScale), (float)GetScreenHeight()*0.55f};
   }
 }

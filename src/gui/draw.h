@@ -1,12 +1,14 @@
 #pragma once
 #include "raylib.h"
-#include "../math/matrix.h" // Necesario para acceder a los pesos
+#include "../math/matrix.h" 
 #include <vector>
 #include <cmath>
 #include <memory>
 #include <algorithm>
 
-// Custom Types
+// -----------------------------------------------------------------------------
+// TIPOS Y ESTRUCTURAS
+// -----------------------------------------------------------------------------
 using Topology = std::vector<int>;
 
 enum class LayerType {
@@ -25,6 +27,9 @@ struct NetworkLayout {
   float neuronRadius;
 };
 
+// -----------------------------------------------------------------------------
+// CLASE DIGIT VIEWER (Visualizador de MNIST/Optdigits)
+// -----------------------------------------------------------------------------
 class DigitViewer {
 public:
   DigitViewer();
@@ -51,8 +56,8 @@ inline void DigitViewer::setData(const std::vector<int> &dataSample) {
   std::vector<unsigned char> pixelData;
   pixelData.reserve(64);
 
+  // Normalizar datos de 0..16 a 0..255 para la textura
   for (int val : dataSample) {
-    // Normalizamos 0-16 a 0-255
     int scaledVal = static_cast<int>((val / 16.0f) * 255.0f);
     pixelData.push_back(static_cast<unsigned char>(scaledVal));
   }
@@ -73,14 +78,18 @@ inline void DigitViewer::draw(Vector2 position, float rotation, float scale) {
   }
 }
 
+// -----------------------------------------------------------------------------
+// FUNCIONES DE ESTILO Y DIBUJO DE RED
+// -----------------------------------------------------------------------------
+
 inline NeuronTheme getLayerColors(LayerType type) {
   switch (type) {
   case LayerType::Input:
-    return {{255, 100, 255, 200}, {120, 0, 120, 200}};
+    return {{255, 100, 255, 200}, {120, 0, 120, 200}}; // Violeta
   case LayerType::Hidden:
-    return {{100, 200, 255, 200}, {0, 40, 100, 200}};
+    return {{100, 200, 255, 200}, {0, 40, 100, 200}};  // Azul Cielo
   case LayerType::Output:
-    return {{150, 255, 230, 200}, {0, 100, 80, 200}};
+    return {{150, 255, 230, 200}, {0, 100, 80, 200}};  // Verde Agua
   default:
     return {{BLACK}, {RAYWHITE}};
   }
@@ -88,30 +97,37 @@ inline NeuronTheme getLayerColors(LayerType type) {
 
 inline void drawFPSInfo(int fontSize, Color color) {
   DrawText(TextFormat("FPS: %i", GetFPS()), 10, 10, fontSize, color);
-  DrawText(TextFormat("Frame time: %02.02f ms", GetFrameTime()), 60, 10,
-           fontSize, color);
+  DrawText(TextFormat("Frame time: %02.02f ms", GetFrameTime()), 80, 10, fontSize, color);
 }
 
-// Devuelve un par: Las posiciones y el radio ajustado
+// -----------------------------------------------------------------------------
+// CÁLCULO DE LAYOUT (POSICIONES)
+// -----------------------------------------------------------------------------
+// panelWidth: Espacio reservado a la izquierda para la GUI
 inline NetworkLayout calculateNetworkLayout(const Topology &topology,
                                             int screenWidth, int screenHeight,
-                                            float targetRadius) {
+                                            float targetRadius, 
+                                            float panelWidth = 0.0f) {
 
   NetworkLayout layout;
 
   float finalRadius = targetRadius;
-  float margin = 15.0f;
+  float marginY = 15.0f; // Margen vertical entre neuronas
 
+  // Calcular el área disponible real (restando el panel lateral)
+  float startX = panelWidth + 40.0f; // Un poco de padding extra
+  float usableWidth = (float)screenWidth - startX - 40.0f;
+
+  // Determinar la capa más grande para ajustar la altura
   int maxNeurons = 0;
   for (int n : topology)
-    if (n > maxNeurons)
-      maxNeurons = n;
+    if (n > maxNeurons) maxNeurons = n;
 
   float diameter = targetRadius * 2;
-  float totalHeightNeeded =
-      (maxNeurons * diameter) + ((maxNeurons - 1) * margin);
-  float availableHeight = screenHeight - 100.0f;
+  float totalHeightNeeded = (maxNeurons * diameter) + ((maxNeurons - 1) * marginY);
+  float availableHeight = screenHeight - 100.0f; 
 
+  // Si no caben verticalmente, reducir el tamaño de las neuronas
   if (totalHeightNeeded > availableHeight) {
     float spacePerNeuron = availableHeight / maxNeurons;
 
@@ -119,23 +135,26 @@ inline NetworkLayout calculateNetworkLayout(const Topology &topology,
       finalRadius = (spacePerNeuron / 2.0f) - 2.0f;
       diameter = finalRadius * 2;
     }
-    margin = spacePerNeuron - diameter;
+    marginY = spacePerNeuron - diameter;
   }
 
   int numLayers = topology.size();
-  float layerStride = (float)screenWidth / (numLayers + 1);
+  // Distribuir capas horizontalmente en el espacio disponible
+  float layerStride = usableWidth / (numLayers > 1 ? numLayers - 1 : 1);
 
   for (int i = 0; i < numLayers; i++) {
     std::vector<Vector2> layerPositions;
     int numNeurons = topology[i];
-    float xPos = layerStride * (i + 1.75);
+    
+    // Posición X basada en el offset del panel
+    float xPos = startX + (i * layerStride);
 
-    float currentLayerHeight =
-        (numNeurons * diameter) + ((numNeurons - 1) * margin);
+    // Centrar verticalmente esta capa
+    float currentLayerHeight = (numNeurons * diameter) + ((numNeurons - 1) * marginY);
     float startY = (screenHeight - currentLayerHeight) / 2.0f + finalRadius;
 
     for (int j = 0; j < numNeurons; j++) {
-      float yPos = startY + j * (diameter + margin);
+      float yPos = startY + j * (diameter + marginY);
       layerPositions.push_back({xPos, yPos});
     }
     layout.xy.push_back(layerPositions);
@@ -145,17 +164,17 @@ inline NetworkLayout calculateNetworkLayout(const Topology &topology,
   return layout;
 }
 
+// -----------------------------------------------------------------------------
+// DIBUJADO DE NODOS (NEURONAS)
+// -----------------------------------------------------------------------------
 inline void drawNetwork(const NetworkLayout &layout) {
   int totalLayers = layout.xy.size();
 
   for (int i = 0; i < totalLayers; i++) {
     LayerType currentType;
-    if (i == 0)
-      currentType = LayerType::Input;
-    else if (i == totalLayers - 1)
-      currentType = LayerType::Output;
-    else
-      currentType = LayerType::Hidden;
+    if (i == 0) currentType = LayerType::Input;
+    else if (i == totalLayers - 1) currentType = LayerType::Output;
+    else currentType = LayerType::Hidden;
 
     NeuronTheme theme = getLayerColors(currentType);
 
@@ -167,16 +186,21 @@ inline void drawNetwork(const NetworkLayout &layout) {
   }
 }
 
+// -----------------------------------------------------------------------------
+// DIBUJADO DE CONEXIONES (PESOS) CON MAPA DE CALOR
+// -----------------------------------------------------------------------------
 template <typename T>
 inline void drawNetworkConnections(
-    const NetworkLayout &layout,
+    const NetworkLayout &layout, 
     const std::vector<std::shared_ptr<Math::Matrix<T>>> &params = {}) {
 
   int numLayers = layout.xy.size();
-  float baseThickness = layout.neuronRadius * 0.15f;
+  float baseThickness = layout.neuronRadius * 0.15f; 
   float radius = layout.neuronRadius;
-
-  float visualScale = 20.0;
+  
+  // Factor de sensibilidad visual:
+  // Aumentar para que pesos pequeños (0.1, 0.05) se vean más brillantes.
+  float visualScale = 12.0f; 
 
   bool useWeights = !params.empty();
 
@@ -184,74 +208,70 @@ inline void drawNetworkConnections(
 
     const auto &layerIn = layout.xy[layerId];
     const auto &layerOut = layout.xy[layerId + 1];
-
-    std::shared_ptr<Math::Matrix<T>> weightMatrix = nullptr;
-
-    // Puntero a datos crudos y número de columnas para el cálculo de índice
-    const std::vector<T> *wData = nullptr;
+    
+    // Puntero a datos crudos y dimensiones para esta capa
+    const std::vector<T>* wData = nullptr;
     int wCols = 0;
 
+    // Buscamos la matriz de pesos correspondiente (ignorando biases)
+    // params suele ser: [W0, b0, W1, b1 ...] -> Indices 0, 2, 4...
     if (useWeights && (layerId * 2) < params.size()) {
-      weightMatrix = params[layerId * 2];
-      if (weightMatrix) {
-        // CORRECCIÓN: Usamos data() en lugar de at()
-        wData = &weightMatrix->data();
-        wCols =
-            weightMatrix->shape()[1]; // Asumiendo shape() devuelve {rows, cols}
-      }
+        auto weightMatrix = params[layerId * 2];
+        if (weightMatrix) {
+            wData = &weightMatrix->data();
+            wCols = weightMatrix->shape()[1]; // Asumimos shape = {rows, cols}
+        }
     }
 
+    // Iterar Input Neurons (Origen)
     for (size_t j = 0; j < layerIn.size(); j++) {
       Vector2 startPos = {layerIn[j].x + radius, layerIn[j].y};
 
+      // Iterar Output Neurons (Destino)
       for (size_t k = 0; k < layerOut.size(); k++) {
         Vector2 endPos = {layerOut[k].x - radius, layerOut[k].y};
-
-        Color lineColor = YELLOW;
-        float alpha = 0.3f;
+        
+        Color lineColor = YELLOW; 
+        float alpha = 0.3f;       
         float currentThickness = baseThickness;
 
         if (wData) {
-          // Acceso directo al array plano: Fila * Columnas + Columna
-          size_t idx = j * wCols + k;
-          float val = 0.0f;
+             // Cálculo de índice plano para Matrix (row-major o similar)
+             size_t idx = j * wCols + k;
+             float val = 0.0f;
 
-          // Check de seguridad
-          if (idx < wData->size()) {
-            val = (float)(*wData)[idx];
-          }
+             if (idx < wData->size()) {
+                 val = (float)(*wData)[idx];
+             }
+             
+             // Color: Azul (Positivo) / Rojo (Negativo)
+             if (val > 0) {
+                 lineColor = (Color){ 0, 150, 255, 255 }; // Azul Neón
+             } else {
+                 lineColor = (Color){ 255, 50, 50, 255 }; // Rojo Neón
+             }
+             
+             // Opacidad basada en magnitud
+             float magnitude = std::abs(val) * visualScale;
+             if (magnitude > 1.0f) magnitude = 1.0f;
+             
+             // Suelo de visibilidad: Siempre mostrar la estructura débilmente
+             if (magnitude < 0.1f) magnitude = 0.1f; 
 
-          // Definición de colores: Azul (Positivo) / Rojo (Negativo)
-          if (val > 0) {
-            lineColor = (Color){0, 150, 255, 255}; // Azul Neón
-          } else {
-            lineColor = (Color){255, 50, 50, 255}; // Rojo Neón
-          }
+             alpha = magnitude;
+             
+             // Grosor dinámico: Pesos fuertes son más gruesos
+             currentThickness = baseThickness * (0.5f + (magnitude * 1.5f));
 
-          // Cálculo de Opacidad
-          float magnitude = std::abs(val) * visualScale;
-          if (magnitude > 1.0f)
-            magnitude = 1.0f;
-
-          // SUELO DE OPACIDAD: Subido a 0.1 para que las conexiones débiles
-          // sigan siendo visibles (estructura)
-          if (magnitude < 0.1f)
-            magnitude = 0.1f;
-
-          alpha = magnitude;
-
-          // Grosor Dinámico
-          currentThickness = baseThickness * (0.5f + (magnitude * 1.5f));
-
-          lineColor.a = (unsigned char)(alpha * 255.0f);
+             lineColor.a = (unsigned char)(alpha * 255.0f);
         } else {
-          // Modo sin pesos (wireframe)
-          lineColor = Fade(YELLOW, 0.15f);
+             // Modo Wireframe (si no hay pesos cargados)
+             lineColor = Fade(YELLOW, 0.15f); 
         }
 
-        // Dibujar solo si es mínimamente visible
+        // Dibujar solo si es mínimamente visible para ahorrar GPU
         if (alpha > 0.01f) {
-          DrawLineEx(startPos, endPos, currentThickness, lineColor);
+            DrawLineEx(startPos, endPos, currentThickness, lineColor);
         }
       }
     }
