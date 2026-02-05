@@ -1,35 +1,41 @@
 #pragma once
 #include "raylib.h"
-#include "../math/matrix.h" 
+#include "../math/matrix.h"
 #include <vector>
 #include <cmath>
 #include <memory>
 #include <algorithm>
 
 // -----------------------------------------------------------------------------
-// TIPOS Y ESTRUCTURAS
+// Types
 // -----------------------------------------------------------------------------
+
+// Define the Topology type
 using Topology = std::vector<int>;
 
+// Define a Enum Class for each Layer type
 enum class LayerType {
   Input,
   Hidden,
   Output,
 };
 
+// Data Struct to save Neuron Color
 struct NeuronTheme {
   Color inner;
   Color outer;
 };
 
+// Data Struct for the Network Layout data.
 struct NetworkLayout {
   std::vector<std::vector<Vector2>> xy;
   float neuronRadius;
 };
 
 // -----------------------------------------------------------------------------
-// CLASE DIGIT VIEWER (Visualizador de MNIST/Optdigits)
+// DigitViewer Class to render the test sample to infer.
 // -----------------------------------------------------------------------------
+
 class DigitViewer {
 public:
   DigitViewer();
@@ -41,14 +47,21 @@ private:
   Texture2D texture;
 };
 
+// -----------------------------------------------------------------------------
+// DigitViewer Class Methods
+// -----------------------------------------------------------------------------
+
+// Constructor
 inline DigitViewer::DigitViewer() { texture = {0}; }
 
+// Destructor
 inline DigitViewer::~DigitViewer() {
   if (texture.id != 0) {
     UnloadTexture(texture);
   }
 }
 
+// Set Data to Viewer and render the 2D texture
 inline void DigitViewer::setData(const std::vector<int> &dataSample) {
   if (texture.id != 0)
     UnloadTexture(texture);
@@ -56,7 +69,6 @@ inline void DigitViewer::setData(const std::vector<int> &dataSample) {
   std::vector<unsigned char> pixelData;
   pixelData.reserve(64);
 
-  // Normalizar datos de 0..16 a 0..255 para la textura
   for (int val : dataSample) {
     int scaledVal = static_cast<int>((val / 16.0f) * 255.0f);
     pixelData.push_back(static_cast<unsigned char>(scaledVal));
@@ -72,65 +84,76 @@ inline void DigitViewer::setData(const std::vector<int> &dataSample) {
   SetTextureFilter(texture, TEXTURE_FILTER_POINT);
 }
 
+// Draw the current data
 inline void DigitViewer::draw(Vector2 position, float rotation, float scale) {
   if (texture.id != 0) {
     DrawTextureEx(texture, position, rotation, scale, WHITE);
   }
 }
 
+// Auxiliar Functions to Draw Network
+
+inline Color getLineColor(float val) {
+  return (val > 0) ? Color({0, 150, 255, 255}) : Color({255, 50, 50, 255});
+}
+
 // -----------------------------------------------------------------------------
-// FUNCIONES DE ESTILO Y DIBUJO DE RED
+// Get the Color for each Layer Neuron
 // -----------------------------------------------------------------------------
 
 inline NeuronTheme getLayerColors(LayerType type) {
   switch (type) {
   case LayerType::Input:
-    return {{255, 100, 255, 200}, {120, 0, 120, 200}}; // Violeta
+    return {{255, 100, 255, 200}, {120, 0, 120, 200}};
   case LayerType::Hidden:
-    return {{100, 200, 255, 200}, {0, 40, 100, 200}};  // Azul Cielo
+    return {{100, 200, 255, 200}, {0, 40, 100, 200}};
   case LayerType::Output:
-    return {{150, 255, 230, 200}, {0, 100, 80, 200}};  // Verde Agua
+    return {{150, 255, 230, 200}, {0, 100, 80, 200}};
   default:
     return {{BLACK}, {RAYWHITE}};
   }
 }
 
+// Draw info abour current FPS and Frame Time
 inline void drawFPSInfo(int fontSize, Color color) {
   DrawText(TextFormat("FPS: %i", GetFPS()), 10, 10, fontSize, color);
-  DrawText(TextFormat("Frame time: %02.02f ms", GetFrameTime()), 80, 10, fontSize, color);
+  DrawText(TextFormat("Frame time: %02.02f ms", GetFrameTime()), 80, 10,
+           fontSize, color);
 }
 
 // -----------------------------------------------------------------------------
-// CÁLCULO DE LAYOUT (POSICIONES)
+// Get the xy coords to draw each neuron based on screenWidth and screenHeight
+// and Control UI Panel Width try set the set targetRadius if possible
 // -----------------------------------------------------------------------------
-// panelWidth: Espacio reservado a la izquierda para la GUI
 inline NetworkLayout calculateNetworkLayout(const Topology &topology,
                                             int screenWidth, int screenHeight,
-                                            float targetRadius, 
+                                            float targetRadius,
                                             float panelWidth = 0.0f) {
 
   NetworkLayout layout;
 
   float finalRadius = targetRadius;
-  float marginY = 15.0f; // Margen vertical entre neuronas
+  float marginY = 15.0f;
 
-  // Calcular el área disponible real (restando el panel lateral)
-  float startX = panelWidth + 40.0f; // Un poco de padding extra
-  float usableWidth = (float)screenWidth - startX - 40.0f;
+  float startX = panelWidth + 60.0f;
+  float usableWidth = (float)screenWidth - startX - 60.0f;
 
-  // Determinar la capa más grande para ajustar la altura
   int maxNeurons = 0;
-  for (int n : topology)
-    if (n > maxNeurons) maxNeurons = n;
+  // Omitimos capa 0 (input colapsado) para calcular altura
+  for (size_t i = 1; i < topology.size(); ++i) {
+    if (topology[i] > maxNeurons)
+      maxNeurons = topology[i];
+  }
+  if (maxNeurons == 0)
+    maxNeurons = topology[0];
 
   float diameter = targetRadius * 2;
-  float totalHeightNeeded = (maxNeurons * diameter) + ((maxNeurons - 1) * marginY);
-  float availableHeight = screenHeight - 100.0f; 
+  float totalHeightNeeded =
+      (maxNeurons * diameter) + ((maxNeurons - 1) * marginY);
+  float availableHeight = screenHeight - 100.0f;
 
-  // Si no caben verticalmente, reducir el tamaño de las neuronas
   if (totalHeightNeeded > availableHeight) {
     float spacePerNeuron = availableHeight / maxNeurons;
-
     if (diameter > spacePerNeuron) {
       finalRadius = (spacePerNeuron / 2.0f) - 2.0f;
       diameter = finalRadius * 2;
@@ -139,18 +162,38 @@ inline NetworkLayout calculateNetworkLayout(const Topology &topology,
   }
 
   int numLayers = topology.size();
-  // Distribuir capas horizontalmente en el espacio disponible
-  float layerStride = usableWidth / (numLayers > 1 ? numLayers - 1 : 1);
 
+  float inputStride =
+      120.0f; // Lees Space between input Layer and first Hidden Layer
+  float hiddenStride = 0.0f;
+
+  // Adaptative space between layer based on usableWidth.
+  if (usableWidth < 300.0f)
+    inputStride = usableWidth * 0.3f;
+
+  // Divide the usable width to each layer
+  if (numLayers > 2) {
+    float remainingWidth = usableWidth - inputStride;
+    hiddenStride = remainingWidth / (numLayers - 2);
+  } else {
+    inputStride = usableWidth;
+    hiddenStride = 0.0f;
+  }
+
+  // Set the xy coords to each layer and neuron with Adaptative radius
   for (int i = 0; i < numLayers; i++) {
     std::vector<Vector2> layerPositions;
     int numNeurons = topology[i];
-    
-    // Posición X basada en el offset del panel
-    float xPos = startX + (i * layerStride);
 
-    // Centrar verticalmente esta capa
-    float currentLayerHeight = (numNeurons * diameter) + ((numNeurons - 1) * marginY);
+    float xPos = startX;
+    if (i == 1) {
+      xPos += inputStride;
+    } else if (i > 1) {
+      xPos += inputStride + ((i - 1) * hiddenStride);
+    }
+
+    float currentLayerHeight =
+        (numNeurons * diameter) + ((numNeurons - 1) * marginY);
     float startY = (screenHeight - currentLayerHeight) / 2.0f + finalRadius;
 
     for (int j = 0; j < numNeurons; j++) {
@@ -165,18 +208,38 @@ inline NetworkLayout calculateNetworkLayout(const Topology &topology,
 }
 
 // -----------------------------------------------------------------------------
-// DIBUJADO DE NODOS (NEURONAS)
+// Draw the Network Node by Node (neuron)
 // -----------------------------------------------------------------------------
 inline void drawNetwork(const NetworkLayout &layout) {
   int totalLayers = layout.xy.size();
 
   for (int i = 0; i < totalLayers; i++) {
     LayerType currentType;
-    if (i == 0) currentType = LayerType::Input;
-    else if (i == totalLayers - 1) currentType = LayerType::Output;
-    else currentType = LayerType::Hidden;
+    if (i == 0)
+      currentType = LayerType::Input;
+    else if (i == totalLayers - 1)
+      currentType = LayerType::Output;
+    else
+      currentType = LayerType::Hidden;
 
     NeuronTheme theme = getLayerColors(currentType);
+
+    if (i == 0) {
+      if (!layout.xy[i].empty()) {
+        float x = layout.xy[i][0].x;
+        float minY = layout.xy[i].front().y;
+        float maxY = layout.xy[i].back().y;
+        float centerY = (minY + maxY) / 2.0f;
+
+        DrawCircleGradient((int)x, (int)centerY, layout.neuronRadius,
+                           theme.inner, theme.outer);
+        DrawCircleLines((int)x, (int)centerY, layout.neuronRadius, theme.outer);
+
+        DrawText("Input", (int)x - 20,
+                 (int)centerY - (int)layout.neuronRadius - 20, 10, GRAY);
+      }
+      continue;
+    }
 
     for (const auto &pos : layout.xy[i]) {
       DrawCircleGradient((int)pos.x, (int)pos.y, layout.neuronRadius,
@@ -186,21 +249,19 @@ inline void drawNetwork(const NetworkLayout &layout) {
   }
 }
 
-// -----------------------------------------------------------------------------
-// DIBUJADO DE CONEXIONES (PESOS) CON MAPA DE CALOR
-// -----------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------
+// Draw the conections between Layers and set the color & alpha based on the
+// currect weight between neurons
+// ---------------------------------------------------------------------------------------------------------------
 template <typename T>
 inline void drawNetworkConnections(
-    const NetworkLayout &layout, 
+    const NetworkLayout &layout,
     const std::vector<std::shared_ptr<Math::Matrix<T>>> &params = {}) {
 
   int numLayers = layout.xy.size();
-  float baseThickness = layout.neuronRadius * 0.15f; 
+  float baseThickness = layout.neuronRadius * 0.05f;
   float radius = layout.neuronRadius;
-  
-  // Factor de sensibilidad visual:
-  // Aumentar para que pesos pequeños (0.1, 0.05) se vean más brillantes.
-  float visualScale = 12.0f; 
+  float visualScale = 100.0f;
 
   bool useWeights = !params.empty();
 
@@ -208,70 +269,94 @@ inline void drawNetworkConnections(
 
     const auto &layerIn = layout.xy[layerId];
     const auto &layerOut = layout.xy[layerId + 1];
-    
-    // Puntero a datos crudos y dimensiones para esta capa
-    const std::vector<T>* wData = nullptr;
-    int wCols = 0;
 
-    // Buscamos la matriz de pesos correspondiente (ignorando biases)
-    // params suele ser: [W0, b0, W1, b1 ...] -> Indices 0, 2, 4...
+    const std::vector<T> *wData = nullptr;
+    int wCols = 0;
     if (useWeights && (layerId * 2) < params.size()) {
-        auto weightMatrix = params[layerId * 2];
-        if (weightMatrix) {
-            wData = &weightMatrix->data();
-            wCols = weightMatrix->shape()[1]; // Asumimos shape = {rows, cols}
-        }
+      auto weightMatrix = params[layerId * 2];
+      if (weightMatrix) {
+        wData = &weightMatrix->data();
+        wCols = weightMatrix->shape()[1];
+      }
     }
 
-    // Iterar Input Neurons (Origen)
-    for (size_t j = 0; j < layerIn.size(); j++) {
-      Vector2 startPos = {layerIn[j].x + radius, layerIn[j].y};
+    // Input -> First Hidden Layer
+    if (layerId == 0) {
+      float srcX = layerIn[0].x + radius;
+      float srcY = (layerIn.front().y + layerIn.back().y) / 2.0f;
+      Vector2 startPos = {srcX, srcY};
 
-      // Iterar Output Neurons (Destino)
       for (size_t k = 0; k < layerOut.size(); k++) {
         Vector2 endPos = {layerOut[k].x - radius, layerOut[k].y};
-        
-        Color lineColor = YELLOW; 
-        float alpha = 0.3f;       
+
+        float avgVal = 0.0f;
+        if (wData && !layerIn.empty()) {
+          float sum = 0.0f;
+          for (size_t j = 0; j < layerIn.size(); ++j) {
+            size_t idx = j * wCols + k;
+            if (idx < wData->size())
+              sum += (float)(*wData)[idx];
+          }
+          avgVal = sum / (float)layerIn.size();
+        }
+
+        Color lineColor = YELLOW;
+        float alpha = 0.3f;
         float currentThickness = baseThickness;
 
         if (wData) {
-             // Cálculo de índice plano para Matrix (row-major o similar)
-             size_t idx = j * wCols + k;
-             float val = 0.0f;
+          lineColor = getLineColor(avgVal);
 
-             if (idx < wData->size()) {
-                 val = (float)(*wData)[idx];
-             }
-             
-             // Color: Azul (Positivo) / Rojo (Negativo)
-             if (val > 0) {
-                 lineColor = (Color){ 0, 150, 255, 255 }; // Azul Neón
-             } else {
-                 lineColor = (Color){ 255, 50, 50, 255 }; // Rojo Neón
-             }
-             
-             // Opacidad basada en magnitud
-             float magnitude = std::abs(val) * visualScale;
-             if (magnitude > 1.0f) magnitude = 1.0f;
-             
-             // Suelo de visibilidad: Siempre mostrar la estructura débilmente
-             if (magnitude < 0.1f) magnitude = 0.1f; 
+          float magnitude = std::abs(avgVal) * (visualScale * 3.0f);
 
-             alpha = magnitude;
-             
-             // Grosor dinámico: Pesos fuertes son más gruesos
-             currentThickness = baseThickness * (0.5f + (magnitude * 1.5f));
+          if (magnitude > 1.0f)
+            magnitude = 1.0f;
+          if (magnitude < 0.1f)
+            magnitude = 0.1f;
 
-             lineColor.a = (unsigned char)(alpha * 255.0f);
+          alpha = magnitude;
+          currentThickness = baseThickness * (0.5f + (magnitude * 1.5f));
+          lineColor.a = (unsigned char)(alpha * 255.0f);
         } else {
-             // Modo Wireframe (si no hay pesos cargados)
-             lineColor = Fade(YELLOW, 0.15f); 
+          lineColor = Fade(DARKGRAY, 0.3f);
+        }
+        DrawLineEx(startPos, endPos, currentThickness, lineColor);
+      }
+      continue;
+    }
+
+    // Rest of Layers
+    for (size_t j = 0; j < layerIn.size(); j++) {
+      Vector2 startPos = {layerIn[j].x + radius, layerIn[j].y};
+
+      for (size_t k = 0; k < layerOut.size(); k++) {
+        Vector2 endPos = {layerOut[k].x - radius, layerOut[k].y};
+
+        Color lineColor = YELLOW;
+        float alpha = 0.3f;
+        float currentThickness = baseThickness;
+
+        if (wData) {
+          size_t idx = j * wCols + k;
+          float val = (idx < wData->size()) ? (float)(*wData)[idx] : 0.0f;
+
+          lineColor = getLineColor(val);
+
+          float magnitude = std::abs(val) * visualScale;
+          if (magnitude > 1.0f)
+            magnitude = 1.0f;
+          if (magnitude < 0.1f)
+            magnitude = 0.1f;
+
+          alpha = magnitude;
+          currentThickness = baseThickness * (0.5f + (magnitude * 1.5f));
+          lineColor.a = (unsigned char)(alpha * 255.0f);
+        } else {
+          lineColor = Fade(YELLOW, 0.15f);
         }
 
-        // Dibujar solo si es mínimamente visible para ahorrar GPU
         if (alpha > 0.01f) {
-            DrawLineEx(startPos, endPos, currentThickness, lineColor);
+          DrawLineEx(startPos, endPos, currentThickness, lineColor);
         }
       }
     }
