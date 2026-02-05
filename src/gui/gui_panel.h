@@ -115,10 +115,10 @@ public:
     DrawHistoryLine(trainLossHistory, GREEN); // Train (Frente)
 
     // Annotate current values
-    DrawText(TextFormat("T: %.4f", trainLossHistory.back()), (int)bounds.x + 5,
-             (int)bounds.y + bounds.height - 20, 10, GREEN);
-    DrawText(TextFormat("V: %.4f", valLossHistory.back()), (int)bounds.x + 60,
-             (int)bounds.y + bounds.height - 20, 10, GOLD);
+    DrawText(TextFormat("T: %.4f", trainLossHistory.back()),
+             (int)bounds.x + 120, (int)bounds.y + 25, 10, GREEN);
+    DrawText(TextFormat("V: %.4f", valLossHistory.back()), (int)bounds.x + 170,
+             (int)bounds.y + 25, 10, GOLD);
   }
 
   /*******************************************************************************************************
