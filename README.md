@@ -1,126 +1,176 @@
-# High-Performance C++ Linear Algebra & Neural Network Engine
+# ANN Learning Simulation & High-Perf C++ Engine
 
-Este motor es una implementación desde cero (from scratch) de una biblioteca de álgebra lineal optimizada y un framework de Deep Learning modular desarrollado en C++17. El proyecto ha sido diseñado priorizando la eficiencia computacional mediante paralelismo masivo y una arquitectura de grafos de operación.
+Este proyecto es una implementación dual: un motor de Deep Learning desarrollado desde cero (from scratch) en C++17 y una herramienta de simulación visual para observar la convergencia de redes neuronales en tiempo real.
 
-## 1. Arquitectura del Sistema
+A diferencia de los wrappers de frameworks existentes, este proyecto implementa su propio kernel de álgebra lineal y sistema de diferenciación automática.
 
-El framework se divide en dos grandes núcleos interdependientes:
+## Visualización y Simulación
 
-### A. Core Matemático (Math)
+El proyecto incluye un módulo de interfaz gráfico basado en Raygui que permite visualizar la frontera de decisión de la red neuronal evolucionando durante el entrenamiento.
 
-Ubicado en `src/math/`, gestiona la abstracción de tensores de rango 2 (Matrices).
+### Ejemplo de Red Inicial (Pesos Aleatorios)
 
-* **Gestión de Memoria:** Implementa un esquema de almacenamiento contiguo para maximizar el cache locality.
+<img src="img/init_example.png" width="100%">
 
-* **Aceleración de Hardware:** Utiliza directivas OpenMP (SIMD y Parallel For) para la vectorización de operaciones elementales y multiplicación de matrices.
+### Ejemplo de Red Entrenada
 
-* **Broadcasting Engine:** Capacidad nativa para operar matrices de distintas dimensiones compatibles (ej. suma de bias vectorizada sobre batches).
+<img src="img/trained_example.png" width="100%">
 
-* **Polimorfismo de Datos:** Basado íntegramente en templates para soportar precisión simple (float), doble (double) o tipos personalizados.
+## Arquitectura del Sistema
 
-### B. Motor de Redes Neuronales (NN)
+El código se estructura en tres capas de abstracción estrictas:
 
-Ubicado en `src/nn/`, sigue un diseño orientado a objetos para el cálculo de gradientes.
+### Núcleo Matemático (`src/math/`)
 
-* **Abstracción de Operaciones:** Cada capa se descompone en un grafo de Operations, facilitando la implementación de la retropropagación (Backpropagation) automática.
+El núcleo de cómputo no utiliza librerías externas como BLAS o Eigen. Implementa una clase `Matrix<T>` optimizada:
 
-* **Initialization Suite:** Implementación de inicialización de pesos Xavier/Glorot Normal para prevenir el desvanecimiento del gradiente.
+- Memory Layout: Almacenamiento Row-Major contiguo en un `std::vector<T>` plano para minimizar fallos de caché.
 
-* **Optimización Avanzada:** Soporte para descenso de gradiente estocástico (SGD) y el algoritmo Adam (Adaptive Moment Estimation) con corrección de sesgo.
+- Parallel Computing: Uso de directivas `#pragma omp parallel` for de OpenMP para vectorizar operaciones elementales (suma, producto Hadamard) y multiplicación de matrices ($O(n^3)$ paralelizado).
 
-## 2. Componentes Principales
+- Broadcasting: Soporte nativo para operaciones entre matrices y vectores sin copia de memoria.
 
-### Modelos y Capas
+## Neural Engine (src/nn/)
 
-* `NN::Model`: Orquestador principal. Gestiona el ciclo de vida del entrenamiento, métricas y callbacks.
+Framework modular inspirado en la API de Keras pero con gestión explícita de memoria:
 
-* `NN::Layer::Sequential`: Contenedor de capas que automatiza el flujo de tensores (forward/backward).
+- Grafo Computacional: Definido en `ops.h`. Cada operación (Forward) almacena caché necesario para el paso de gradiente (Backward).
 
-* `NN::Layer::Dense`: Capa totalmente conectada (Fully Connected) con soporte para activaciones integradas.
+- Optimizadores:
+  - Adam: Implementación completa con corrección de sesgo para momentos $m_t$ y $v_t$.
 
-### Funciones de Activación y Coste
+  - SGD: Descenso de gradiente estocástico estándar.
 
-* **Activaciones**: ReLU, Sigmoid y Tanh (optimizadas para gradientes locales).
+- Inicializadores: Inicialización de pesos de Xavier implementada en `layers.h` para mantener la varianza de las activaciones.
 
-* **Coste**: MSE (Mean Squared Error) y Cross-Entropy (implícito/extensible).
+## GUI & Control (`src/gui/`, `src/main.cpp`)
 
-### Optimización
+Loop principal de simulación que desacopla el renderizado (Raylib) del paso de entrenamiento.
 
-* **Adam Optimizer**: Implementa momentos de primer y segundo orden para una convergencia acelerada.
+## Detalles de Implementación
 
-* **Hyperparameter Control**: Configuración fina de $\beta_1$, $\beta_2$ y $\epsilon$.
+Jerarquía de Clases
 
-## 3. Guía de Uso Rápido
+```mermaid
+classDiagram
+    class Model {
+        +add(Layer)
+        +compile(Cost, Optimizer)
+        +fit(X, Y)
+    }
+    class Layer {
+        <<interface>>
+        +forward(input)
+        +backward(gradient)
+    }
+    class Dense {
+        -weights: Matrix
+        -bias: Matrix
+    }
+    class Optimizer {
+        <<abstract>>
+        +update(params, grads)
+    }
 
-Definición de un Perceptrón Multicapa (MLP)
+    Model --> Layer
+    Layer <|-- Dense
+    Layer <|-- Activation
+    Model --> Optimizer
+```
 
-El API ha sido diseñado para ser intuitivo y similar a frameworks modernos como Keras o PyTorch.
+## Stack Tecnológico
+
+- **Lenguaje C++17** (Uso extensivo de `templates`, `std::shared_ptr` y `lambda functions`).
+
+- **Build System** CMake 3.10+.
+
+- Librerías:
+  - OpenMP: Para multithreading en CPU.
+
+  - Raylib: Para la ventana de visualización y input.
+
+## Compilación e Instalación
+
+Debido a la dependencia gráfica, es necesario tener las librerías de desarrollo instaladas.
+
+### Instalar Dependencias (Ubuntu/Debian)
+
+```
+# Compilador y herramientas de construcción
+sudo apt install build-essential git cmake
+
+# OpenMP (generalmente incluido en GCC, pero verificamos)
+sudo apt install libomp-dev
+
+# Dependencias de Raylib (OpenGL, X11, etc.)
+sudo apt install libasound2-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev
+```
+
+#### Construir el Proyecto
+
+```bash
+mkdir build && cd build
+
+# Configurar con optimizaciones Release
+cmake .. -DCMAKE_BUILD_TYPE=Release
+
+# Compilar usando todos los núcleos disponibles
+make -j$(nproc)
+```
+
+#### Ejecutar Simulación
+
+```bash
+./ANN_Learning_Simulation
+```
+
+## Ejemplo de Uso (API)
+
+Aunque el `main.cpp` corre la simulación gráfica, la librería NN puede usarse independientemente (_headless_):
 
 ```cpp
 #include "nn/model.h"
 #include "nn/layers.h"
-#include "nn/activation_func.h"
 
-// 1. Instanciar el contenedor secuencial
-auto layers = std::make_shared<NN::Layer::Sequential<float>>();
+void train_headless() {
+    // 1. Definir topología
+    // Entrada: 2 neuronas, Oculta: 16 neuronas (ReLU), Salida: 1 neurona (Sigmoid)
+    auto layers = std::make_shared<NN::Layer::Sequential<float>>();
 
-// 2. Construir la arquitectura
-layers->add(std::make_shared<NN::Layer::Dense<float>>(
-    128, std::make_shared<NN::ActFunc::ReLU<float>>())
-);
-layers->add(std::make_shared<NN::Layer::Dense<float>>(
-    10, std::make_shared<NN::ActFunc::Sigmoid<float>>())
-);
+    layers->add(std::make_shared<NN::Layer::Dense<float>>(2, 16)); // Infiere input
+    layers->add(std::make_shared<NN::ActFunc::ReLU<float>>());
+    layers->add(std::make_shared<NN::Layer::Dense<float>>(16, 1));
+    layers->add(std::make_shared<NN::ActFunc::Sigmoid<float>>());
 
-// 3. Configurar el modelo
-NN::Model<float> model;
-model.set_layers(layers);
+    // 2. Compilar Modelo
+    NN::Model<float> model;
+    model.set_layers(layers);
 
-// 4. Compilación (Inyección de pérdida y optimizador)
-auto optimizer = std::make_shared<NN::Optimizer::Adam<float>>(0.001f);
-auto loss = std::make_shared<NN::CostFunc::MSE<float>>();
-model.compile(loss, optimizer);
+    // Optimizador Adam con Learning Rate 0.01
+    auto optimizer = std::make_shared<NN::Optimizer::Adam<float>>(0.01f);
+    auto cost = std::make_shared<NN::CostFunc::MSE<float>>(); // Mean Squared Error
 
-// 5. Entrenamiento
-model.fit(x_train, y_train, 50 /*epochs*/, 10 /*verbose*/);
+    model.compile(cost, optimizer);
+
+    // 3. Loop de Entrenamiento Manual (si no se usa fit())
+    for(int epoch = 0; epoch < 1000; epoch++) {
+        auto y_pred = model.forward(input_data);
+        float loss = cost->calc(y_true, y_pred);
+
+        model.backward(y_true, y_pred); // Backprop
+        model.step(); // Update weights
+    }
+}
 ```
 
-### Visualización de la Arquitectura
+## Estructura de Archivos
 
-El método model.summary() genera un reporte detallado en consola:
+- `src/math/matrix.h`: Definición de `Matrix<T>` y sobrecarga de operadores.
 
-```bash
-Layer (type)             Output Shape             Param #        
-=================================================================
-Dense_1                  (None, 128)              8192           
-Dense_2                  (None, 10)               1280           
-=================================================================
-Total params: 9472
-Trainable params: 9472
-```
+- `src/nn/layers.h`: Implementación de capas Dense y Sequential.
 
-## 4. Requisitos Técnicos e Instalación
+- `src/nn/optimizer.h`: Lógica de actualización de pesos (Adam/SGD).
 
-### Prerrequisitos
+- `include/raygui.h`: Header-only library para controles de UI inmediatos.
 
-* **Compilador**: GCC 7+ o Clang con soporte para C++17.
-
-* **Paralelismo**: Soporte para libgomp (OpenMP).
-
-* **Sistema de Construcción**: CMake 3.10+.
-
-### Compilación
-
-```bash
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
-```
-
-## 5. Rendimiento y Optimización
-
-Para obtener el máximo rendimiento de la librería de matrices, asegúrese de compilar con las banderas de optimización de arquitectura:
-
-* `-O3`: Optimización de nivel máximo.
-* `-fopenmp`: Habilita el paralelismo multinúcleo.
-* `-march=native`: Permite el uso de instrucciones vectoriales AVX/AVX2/AVX-512 según el procesador.
+- `data/`: Datasets de prueba (ej. optdigits) en formato nativo.
